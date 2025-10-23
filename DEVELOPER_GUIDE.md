@@ -386,7 +386,9 @@ export default defineConfig({
 - [Tailwind CSS](https://tailwindcss.com)
 
 ### Model Training
-- [Deepfake Detection Datasets](https://github.com/yuezunli/celeb-deepfakeforensics)
+- [FaceForensics++ Dataset](https://github.com/ondyari/FaceForensics)
+- [Celeb-DF Dataset](https://github.com/yuezunli/celeb-deepfakeforensics)
+- [DFDC Dataset (Facebook)](https://ai.facebook.com/datasets/dfdc/)
 - [TensorFlow Model Zoo](https://www.tensorflow.org/lite/models)
 - [Transfer Learning Guide](https://www.tensorflow.org/tutorials/images/transfer_learning)
 
