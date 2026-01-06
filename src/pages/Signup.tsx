@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast'
 import { motion } from 'framer-motion'
 import { Mail, Lock, Loader2, Eye, EyeOff, User } from 'lucide-react'
 import { AnimatedBackground } from '@/components/AnimatedBackground'
+import { OAuthButton } from '@/components/auth/OAuthButton'
 
 export default function Signup() {
   const [name, setName] = useState('')
@@ -20,9 +21,10 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'github' | null>(null)
   const [isEmailSent, setIsEmailSent] = useState(false)
   const [userEmail, setUserEmail] = useState('')
-  const { signUp } = useAuth()
+  const { signUp, signInWithOAuth } = useAuth()
   const navigate = useNavigate()
   const { toast } = useToast()
 
@@ -87,6 +89,22 @@ export default function Signup() {
         navigate('/login')
       }
     }
+  }
+
+  const handleOAuthSignIn = async (provider: 'google' | 'github') => {
+    setOauthLoading(provider)
+    const { error } = await signInWithOAuth(provider)
+    
+    if (error) {
+      toast({
+        title: 'OAuth Failed',
+        description: error.message,
+        variant: 'destructive',
+      })
+      setOauthLoading(null)
+    }
+    // Note: On success, user will be redirected to OAuth provider
+    // and then back to the app, so we don't need to handle success here
   }
 
   // Email confirmation success screen
@@ -287,7 +305,7 @@ export default function Signup() {
               <Button
                 type="submit"
                 className="w-full gradient-hero"
-                disabled={loading}
+                disabled={loading || oauthLoading !== null}
               >
                 {loading ? (
                   <>
@@ -298,6 +316,32 @@ export default function Signup() {
                   'Create Account'
                 )}
               </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <OAuthButton
+                  provider="google"
+                  onClick={() => handleOAuthSignIn('google')}
+                  loading={oauthLoading === 'google'}
+                  disabled={loading || oauthLoading !== null}
+                />
+                <OAuthButton
+                  provider="github"
+                  onClick={() => handleOAuthSignIn('github')}
+                  loading={oauthLoading === 'github'}
+                  disabled={loading || oauthLoading !== null}
+                />
+              </div>
             </form>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
