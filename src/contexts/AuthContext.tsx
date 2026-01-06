@@ -49,6 +49,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { data, error }
   }
 
+  const signInWithOAuth = async (provider: 'google' | 'github') => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    })
+    return { data, error }
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
   }
@@ -75,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     signUp,
     signIn,
+    signInWithOAuth,
     signOut,
     resetPassword,
     updatePassword,
