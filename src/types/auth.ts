@@ -5,6 +5,7 @@ export interface AuthContextType {
   session: Session | null
   signUp: (email: string, password: string, name?: string) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
+  signInWithOAuth: (provider: 'google' | 'github') => Promise<any>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<any>
   updatePassword: (newPassword: string) => Promise<any>
