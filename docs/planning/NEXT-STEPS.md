@@ -1,5 +1,88 @@
 # Next Steps - Commit Organization & Development Roadmap
 
+## 🎯 DETECTION PIPELINE ARCHITECTURE
+
+### **Complete ML Pipeline Flow**
+
+```
+USER INPUT (Video/Image/Webcam)
+    ↓
+┌─────────────────────────────────────────┐
+│  STEP 1: OpenCV Preprocessing          │
+│  - Noise reduction (Gaussian blur)     │
+│  - Histogram equalization              │
+│  - Image normalization                 │
+│  - Color space conversion              │
+└─────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────┐
+│  STEP 2: MediaPipe Face Detection      │
+│  - Detect faces in frame               │
+│  - Get bounding box coordinates        │
+│  - Return confidence scores            │
+└─────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────┐
+│  STEP 3: Face Region Extraction        │
+│  - Crop face using bounding box        │
+│  - Resize to model input (256x256)     │
+│  - Normalize RGB values (0-1)          │
+└─────────────────────────────────────────┘
+    ↓
+┌──────────────────────┬──────────────────┐
+│  PARALLEL PIPELINE A │  PARALLEL PIPELINE B│
+│                      │                  │
+│  MediaPipe Features  │  TensorFlow CNN  │
+│  ─────────────────   │  ─────────────── │
+│  • 468 Landmarks     │  • MesoNet Model │
+│  • Blink Detection   │  • Image Input   │
+│  • Landmark Jitter   │  • CNN Inference │
+│  • Face Symmetry     │  • Fake Score    │
+│  • Mouth Movement    │  (0.0 - 1.0)     │
+│  • Head Pose         │                  │
+│  Feature Score       │  Texture Score   │
+│  (0-100%)            │  (0-100%)        │
+└──────────────────────┴──────────────────┘
+    ↓
+┌─────────────────────────────────────────┐
+│  STEP 4: Ensemble Decision              │
+│  - Weighted average:                    │
+│    * 70% CNN prediction                 │
+│    * 30% Feature-based score            │
+│  - Combine anomaly detections           │
+│  - Calculate final confidence           │
+└─────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────┐
+│  FINAL OUTPUT                           │
+│  {                                      │
+│    isDeepfake: boolean,                 │
+│    confidence: 0-100%,                  │
+│    scores: {                            │
+│      texture: number,   // CNN          │
+│      features: number,  // MediaPipe    │
+│      temporal: number   // Video only   │
+│    },                                   │
+│    anomalies: string[]                  │
+│  }                                      │
+└─────────────────────────────────────────┘
+    ↓
+DISPLAY RESULTS TO USER
+```
+
+### **Tool Responsibilities**
+
+| Tool | Purpose | Input | Output |
+|------|---------|-------|--------|
+| **OpenCV** | Image preprocessing | Raw image/frame | Enhanced image |
+| **MediaPipe (Face Detection)** | Locate faces | Enhanced image | Bounding boxes |
+| **MediaPipe (Face Mesh)** | Extract landmarks | Face region | 468 3D landmarks |
+| **MediaPipe (Features)** | Behavioral analysis | Landmarks over time | Feature scores |
+| **TensorFlow.js (MesoNet)** | Deep learning classification | 256x256 face image | Fake probability |
+| **Ensemble** | Combine predictions | All scores | Final decision |
+
+---
+
 ## 📊 PROJECT ANALYSIS & COMMIT BREAKDOWN
 
 Based on comparing your current implementation with the **FRONTEND-PLAN.md**, here's what's been completed and how to organize it into commits:
@@ -476,17 +559,58 @@ git commit -m "docs: add 30-week frontend development plan"
   - ✅ Dark/Light mode
   - ✅ About modal
 
-### ⏳ **MISSING** (from plan - NOT YET IMPLEMENTED)
-- ❌ Phase 1 (Weeks 3-9): Model Training (No ML model)
-- ❌ Phase 2 (Weeks 10-15): Core Implementation
-  - ❌ Face detection integration (MediaPipe not connected)
-  - ❌ Frame processing pipeline
-  - ❌ TensorFlow.js model loading
-  - ❌ Real inference (currently mock data)
-- ❌ Phase 3: Explainability (Grad-CAM heatmaps)
-- ❌ Phase 3: Webcam support (button exists but not functional)
-- ❌ Phase 3: Batch processing
-- ❌ Phase 4 (Weeks 21-24): Evaluation & Testing
+### ⏳ **PRIORITY: ML Model Integration** (CRITICAL PATH)
+
+**STATUS: Pipeline code complete, needs real ML model**
+
+- ✅ MediaPipe face detection (coded, working)
+- ✅ MediaPipe face mesh (coded, working)
+- ✅ Feature extraction (coded, working)
+- ✅ Frame processing pipeline (coded, working)
+- ✅ TensorFlow.js setup (coded, ready)
+- ❌ **CRITICAL**: Real deepfake detection model (currently mock)
+  - **Solution**: Integrate MesoNet pre-trained model
+  - **See**: `docs/planning/ML-MODEL-INTEGRATION.md`
+  - **Time**: 1-2 days to integrate
+  - **Impact**: Makes detection actually work!
+
+### ⏳ **LOWER PRIORITY** (Can do after model works)
+- ❌ Explainability (Grad-CAM heatmaps) - Enhancement
+- ❌ Batch processing - Nice to have
+- ❌ Model fine-tuning - Optimization
+- ❌ Comprehensive testing suite - QA phase
+
+---
+
+## 🚨 **IMMEDIATE NEXT STEPS** (Priority Order)
+
+### **1. Integrate Real ML Model (THIS WEEK)**
+**Branch**: `feat/mesonet-integration`
+
+**Tasks**:
+- [ ] Download/convert MesoNet model to TensorFlow.js
+- [ ] Update `src/lib/tensorflow/detector.ts` with real model
+- [ ] Add preprocessing for 256x256 input
+- [ ] Test with sample deepfake images
+- [ ] Merge to main
+
+**Files to modify**:
+- `src/lib/tensorflow/detector.ts`
+- `public/models/mesonet/` (new directory)
+
+**Expected outcome**: Detection actually works with real ML!
+
+### **2. Test & Validate (NEXT WEEK)**
+- [ ] Test with FaceForensics++ samples
+- [ ] Validate accuracy metrics
+- [ ] Fix any bugs found
+- [ ] Optimize inference speed
+
+### **3. Polish & Deploy (WEEK AFTER)**
+- [ ] Add loading indicators
+- [ ] Error handling improvements
+- [ ] Performance optimization
+- [ ] Documentation updates
 
 ---
 

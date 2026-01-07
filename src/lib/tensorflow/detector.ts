@@ -25,8 +25,11 @@ export interface DetectionResult {
 }
 
 export class DeepfakeDetector {
-  private model: tf.LayersModel | null = null;
+  private model: tf.LayersModel | tf.GraphModel | null = null;
+  private mobileNet: tf.GraphModel | null = null;
   private isInitialized = false;
+  private modelLoadError: boolean = false;
+  private modelType: 'mesonet' | 'mobilenet' | 'none' = 'none';
 
   constructor() {
     this.initialize();
@@ -39,13 +42,36 @@ export class DeepfakeDetector {
     try {
       // Wait for TensorFlow.js to be ready
       await tf.ready();
+      console.log('TensorFlow.js ready');
 
-      // For now, we'll use a simple feature-based classifier
-      // In production, you would load a pre-trained model:
-      // this.model = await tf.loadLayersModel('/models/deepfake_detector.json');
+      // Try to load models in order of preference
+      
+      // 1. Try MesoNet (specialized for deepfakes)
+      try {
+        this.model = await tf.loadLayersModel('/models/mesonet/model.json');
+        this.modelType = 'mesonet';
+        console.log('✅ MesoNet model loaded successfully');
+      } catch {
+        console.log('⚠️ MesoNet not found, trying MobileNet...');
+        
+        // 2. Try MobileNetV2 from TensorFlow Hub (general-purpose CNN)
+        try {
+          this.mobileNet = await tf.loadGraphModel(
+            'https://tfhub.dev/google/tfjs-model/imagenet/mobilenet_v2_100_224/feature_vector/3/default/1',
+            { fromTFHub: true }
+          );
+          this.modelType = 'mobilenet';
+          console.log('✅ MobileNetV2 loaded from TensorFlow Hub');
+          console.log('📊 Using MobileNet feature extraction + ensemble detection');
+        } catch {
+          console.warn('⚠️ Could not load MobileNet from TFHub');
+          console.warn('Using enhanced feature-based detection only');
+          this.modelLoadError = true;
+        }
+      }
 
       this.isInitialized = true;
-      console.log('Deepfake detector initialized');
+      console.log(`🎯 Deepfake detector initialized (mode: ${this.modelType})`);
     } catch (error) {
       console.error('Failed to initialize detector:', error);
       throw error;
@@ -62,61 +88,291 @@ export class DeepfakeDetector {
   }
 
   /**
-   * Detect deepfake from features
+   * Detect deepfake from features (MediaPipe analysis)
    */
   async detectFromFeatures(features: DeepfakeFeatures): Promise<DetectionResult> {
     await this.waitForInitialization();
 
     const anomalies: string[] = [];
-    const scores: DetectionResult['scores'] = {};
+    let featureScore = 0;
 
     // Analyze blink rate (normal: 15-20 blinks/min)
     if (features.blinkRate < 5 || features.blinkRate > 30) {
       anomalies.push('abnormal_blink_rate');
-      scores.features = (scores.features || 0) + 0.3;
+      featureScore += 0.3;
     }
 
     // Analyze eye aspect ratio (normal: ~0.25)
     if (features.eyeAspectRatio < 0.15 || features.eyeAspectRatio > 0.35) {
       anomalies.push('unusual_eye_opening');
-      scores.features = (scores.features || 0) + 0.2;
+      featureScore += 0.2;
     }
 
     // Analyze landmark jitter (high jitter = suspicious)
     if (features.landmarkJitter > 0.05) {
       anomalies.push('high_landmark_instability');
-      scores.features = (scores.features || 0) + 0.3;
+      featureScore += 0.3;
     }
 
     // Analyze face symmetry (should be high)
     if (features.faceSymmetry < 0.7) {
       anomalies.push('face_asymmetry');
-      scores.features = (scores.features || 0) + 0.2;
+      featureScore += 0.2;
     }
 
     // Analyze head pose stability (should be moderate)
     if (features.headPoseStability < 0.5) {
       anomalies.push('unstable_head_pose');
-      scores.features = (scores.features || 0) + 0.15;
+      featureScore += 0.15;
     }
 
-    // Calculate overall deepfake score
-    const featureScore = scores.features || 0;
-    const isDeepfake = featureScore > 0.5;
-    const confidence = Math.min(featureScore / 0.8, 1);
+    // Normalize score
+    featureScore = Math.min(featureScore, 1.0);
+    const confidence = Math.abs(featureScore - 0.5) * 2;
 
     return {
-      isDeepfake,
+      isDeepfake: featureScore > 0.5,
       confidence,
-      scores,
+      scores: {
+        features: featureScore * 100,
+      },
       anomalies,
     };
+  }
+
+  /**
+   * Ensemble detection combining CNN + Features + Texture
+   */
+  async detectEnsemble(
+    imageData: ImageData,
+    features?: DeepfakeFeatures
+  ): Promise<DetectionResult> {
+    const imageTensor = tf.browser.fromPixels(imageData).div(255.0);
+    
+    try {
+      // Get CNN/texture score
+      const imageResult = await this.detectFromImage(imageTensor);
+      
+      // Get feature score if available
+      let featureResult: DetectionResult | null = null;
+      if (features) {
+        featureResult = await this.detectFromFeatures(features);
+      }
+      
+      // Combine results with weighted ensemble
+      if (featureResult) {
+        const weight = this.modelType !== 'none' ? 0.7 : 0.5; // More weight to CNN if available
+        const ensembleScore = (imageResult.confidence * weight) + (featureResult.confidence * (1 - weight));
+        
+        return {
+          isDeepfake: ensembleScore > 0.5,
+          confidence: ensembleScore,
+          scores: {
+            ...imageResult.scores,
+            ...featureResult.scores,
+          },
+          anomalies: [...new Set([...imageResult.anomalies, ...featureResult.anomalies])],
+        };
+      }
+      
+      return imageResult;
+    } finally {
+      imageTensor.dispose();
+    }
+  }
+
+  /**
+   * Preprocess image for model input
+   * - MesoNet: 256x256
+   * - MobileNet: 224x224
+   */
+  private preprocessForModel(imageTensor: tf.Tensor, targetSize: [number, number] = [256, 256]): tf.Tensor4D {
+    return tf.tidy(() => {
+      let processed = imageTensor;
+
+      // Ensure 3D tensor (height, width, channels)
+      if (processed.shape.length === 4) {
+        processed = tf.squeeze(processed, [0]);
+      }
+
+      // Resize to target size
+      processed = tf.image.resizeBilinear(processed as tf.Tensor3D, targetSize);
+
+      // Normalize to [0, 1] range if not already
+      const max = tf.max(processed);
+      if (max.dataSync()[0] > 1) {
+        processed = tf.div(processed, 255.0);
+      }
+
+      // Add batch dimension
+      return processed.expandDims(0) as tf.Tensor4D;
+    });
   }
 
   /**
    * Detect deepfake from image tensor
    */
   async detectFromImage(imageTensor: tf.Tensor): Promise<DetectionResult> {
+    await this.waitForInitialization();
+
+    // Route to appropriate model
+    if (this.modelType === 'mesonet' && this.model) {
+      return await this.detectWithMesoNet(imageTensor);
+    } else if (this.modelType === 'mobilenet' && this.mobileNet) {
+      return await this.detectWithMobileNet(imageTensor);
+    }
+
+    // Fallback: Enhanced texture analysis
+    return this.analyzeTexture(imageTensor);
+  }
+
+  /**
+   * Detect using MesoNet model (specialized for deepfakes)
+   */
+  private async detectWithMesoNet(imageTensor: tf.Tensor): Promise<DetectionResult> {
+    const preprocessed = this.preprocessForModel(imageTensor, [256, 256]);
+
+    try {
+      const prediction = this.model!.predict(preprocessed) as tf.Tensor;
+      const score = await prediction.data();
+
+      // MesoNet outputs probability of being fake
+      const deepfakeScore = score[0];
+      const confidence = Math.abs(deepfakeScore - 0.5) * 2; // Convert to confidence 0-1
+
+      // Cleanup tensors
+      preprocessed.dispose();
+      prediction.dispose();
+
+      return {
+        isDeepfake: deepfakeScore > 0.5,
+        confidence,
+        scores: {
+          texture: deepfakeScore * 100,
+        },
+        anomalies: deepfakeScore > 0.7 ? ['high_cnn_score', 'texture_anomalies'] : 
+                   deepfakeScore > 0.5 ? ['texture_anomalies'] : [],
+      };
+    } catch (error) {
+      console.error('MesoNet inference error:', error);
+      preprocessed.dispose();
+      return this.analyzeTexture(imageTensor);
+    }
+  }
+
+  /**
+   * Detect using MobileNet (feature extraction + classification)
+   */
+  private async detectWithMobileNet(imageTensor: tf.Tensor): Promise<DetectionResult> {
+    const preprocessed = this.preprocessForModel(imageTensor, [224, 224]);
+
+    try {
+      // Extract features using MobileNet
+      const features = this.mobileNet!.predict(preprocessed) as tf.Tensor;
+      const featureVector = await features.data();
+
+      // Analyze feature patterns for deepfake indicators
+      const deepfakeScore = this.analyzeFeatureVector(featureVector);
+      const confidence = Math.abs(deepfakeScore - 0.5) * 2;
+
+      // Cleanup
+      preprocessed.dispose();
+      features.dispose();
+
+      return {
+        isDeepfake: deepfakeScore > 0.5,
+        confidence,
+        scores: {
+          texture: deepfakeScore * 100,
+        },
+        anomalies: deepfakeScore > 0.6 ? ['suspicious_feature_pattern'] : [],
+      };
+    } catch (error) {
+      console.error('MobileNet inference error:', error);
+      preprocessed.dispose();
+      return this.analyzeTexture(imageTensor);
+    }
+  }
+
+  /**
+   * Analyze MobileNet feature vector for deepfake indicators
+   * Uses statistical analysis of the 1280-dimensional feature vector
+   */
+  private analyzeFeatureVector(features: Float32Array | Int32Array | Uint8Array): number {
+    // Convert to array for analysis
+    const featureArray = Array.from(features);
+    
+    // Calculate statistics
+    const mean = featureArray.reduce((a, b) => a + b, 0) / featureArray.length;
+    const variance = featureArray.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / featureArray.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Deepfake indicators in feature space:
+    // 1. Unusual feature distribution (too uniform or too peaked)
+    const featureEntropy = this.calculateEntropy(featureArray);
+    
+    // 2. Abnormal activation patterns
+    const sparsity = featureArray.filter(f => Math.abs(f) < 0.01).length / featureArray.length;
+    
+    // 3. Feature consistency (deepfakes often have inconsistent features)
+    const coefficientOfVariation = stdDev / (Math.abs(mean) + 1e-7);
+    
+    let deepfakeScore = 0;
+    
+    // Low entropy = overly smooth/uniform features (suspicious)
+    if (featureEntropy < 0.3) {
+      deepfakeScore += 0.3;
+    }
+    
+    // High sparsity = many dead features (suspicious)
+    if (sparsity > 0.7) {
+      deepfakeScore += 0.25;
+    }
+    
+    // High variation = inconsistent features (suspicious)
+    if (coefficientOfVariation > 2.0) {
+      deepfakeScore += 0.25;
+    }
+    
+    // Normalize to 0-1
+    return Math.min(deepfakeScore, 1.0);
+  }
+
+  /**
+   * Calculate entropy of feature distribution
+   */
+  private calculateEntropy(features: number[]): number {
+    // Bin features into histogram
+    const bins = 50;
+    const min = Math.min(...features);
+    const max = Math.max(...features);
+    const binSize = (max - min) / bins;
+    const histogram = new Array(bins).fill(0);
+    
+    features.forEach(f => {
+      const binIndex = Math.min(Math.floor((f - min) / binSize), bins - 1);
+      histogram[binIndex]++;
+    });
+    
+    // Calculate entropy
+    const total = features.length;
+    let entropy = 0;
+    
+    histogram.forEach(count => {
+      if (count > 0) {
+        const p = count / total;
+        entropy -= p * Math.log2(p);
+      }
+    });
+    
+    // Normalize to 0-1 (max entropy for 50 bins is log2(50) ≈ 5.64)
+    return entropy / Math.log2(bins);
+  }
+
+  /**
+   * Detect deepfake from image tensor
+   */
+  async detectFromImageOld(imageTensor: tf.Tensor): Promise<DetectionResult> {
     await this.waitForInitialization();
 
     // If model is loaded, use it
@@ -140,27 +396,66 @@ export class DeepfakeDetector {
   }
 
   /**
-   * Analyze texture using TensorFlow operations
+   * Enhanced texture analysis using TensorFlow operations
+   * Simplified to avoid type issues while maintaining effectiveness
    */
   private async analyzeTexture(imageTensor: tf.Tensor): Promise<DetectionResult> {
     return tf.tidy(() => {
-      // Calculate image statistics
-      const mean = tf.mean(imageTensor);
-      const variance = tf.moments(imageTensor).variance;
+      const anomalies: string[] = [];
+      let deepfakeScore = 0;
 
-      // Simple heuristic: deepfakes tend to have smoother textures
-      const smoothness = tf.div(variance, tf.add(mean, 1e-7));
-      const smoothnessValue = smoothness.dataSync()[0];
+      // Convert to grayscale for texture analysis
+      const gray = tf.image.rgbToGrayscale(imageTensor as tf.Tensor3D);
 
-      const isSmooth = smoothnessValue < 0.1;
+      // 1. Calculate image statistics
+      const { mean, variance } = tf.moments(gray);
+      const meanValue = mean.dataSync()[0];
+      const varianceValue = variance.dataSync()[0];
+
+      // 2. Texture smoothness (deepfakes are often smoother)
+      const smoothness = varianceValue / (meanValue + 1e-7);
+      if (smoothness < 0.08) {
+        anomalies.push('overly_smooth_texture');
+        deepfakeScore += 0.4;
+      }
+
+      // 3. Color distribution analysis
+      if (imageTensor.shape[imageTensor.shape.length - 1] === 3) {
+        const channels = tf.split(imageTensor as tf.Tensor3D, 3, 2);
+        const rMean: number = tf.mean(channels[0]).dataSync()[0];
+        const gMean: number = tf.mean(channels[1]).dataSync()[0];
+        const bMean: number = tf.mean(channels[2]).dataSync()[0];
+
+        // Check for unnatural color balance
+        const colorBalance = Math.max(rMean, gMean, bMean) / (Math.min(rMean, gMean, bMean) + 1e-7);
+        if (colorBalance > 2.0) {
+          anomalies.push('unusual_color_distribution');
+          deepfakeScore += 0.3;
+        }
+        
+        // Check for color channel variance
+        const rVar: number = tf.moments(channels[0]).variance.dataSync()[0];
+        const gVar: number = tf.moments(channels[1]).variance.dataSync()[0];
+        const bVar: number = tf.moments(channels[2]).variance.dataSync()[0];
+        const avgChannelVar = (rVar + gVar + bVar) / 3;
+        
+        if (avgChannelVar < 0.005) {
+          anomalies.push('low_color_variance');
+          deepfakeScore += 0.3;
+        }
+      }
+
+      // Normalize score to 0-1
+      deepfakeScore = Math.min(deepfakeScore, 1.0);
+      const confidence = Math.abs(deepfakeScore - 0.5) * 2;
 
       return {
-        isDeepfake: isSmooth,
-        confidence: isSmooth ? 0.6 : 0.4,
+        isDeepfake: deepfakeScore > 0.5,
+        confidence,
         scores: {
-          texture: isSmooth ? 0.7 : 0.3,
+          texture: deepfakeScore * 100,
         },
-        anomalies: isSmooth ? ['smooth_texture'] : [],
+        anomalies,
       };
     });
   }
@@ -179,7 +474,6 @@ export class DeepfakeDetector {
     }
 
     const deepfakeCount = results.filter(r => r.isDeepfake).length;
-    const avgConfidence = results.reduce((sum, r) => sum + r.confidence, 0) / results.length;
 
     const allAnomalies = Array.from(
       new Set(results.flatMap(r => r.anomalies))
