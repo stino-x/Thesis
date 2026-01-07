@@ -139,8 +139,11 @@ const VideoAnalyzer = () => {
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
 
-      // Analyze frames
+      // Analyze frames with multi-modal detection
       const results: FrameResult[] = [];
+      const { getFaceMesh } = await import('@/lib/mediapipe');
+      const faceMesh = getFaceMesh();
+      await faceMesh.waitForInitialization();
 
       for (let i = 0; i < frames.length; i++) {
         const frame = frames[i];
@@ -149,10 +152,20 @@ const VideoAnalyzer = () => {
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(frame.imageData, 0, 0, canvas.width, canvas.height);
 
-        // Detect
-        const tensor = canvasToTensor(canvas);
-        const result = await detector.detectFromImage(tensor);
-        tensor.dispose();
+        // Get image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Face mesh detection for multi-modal
+        const meshResult = await faceMesh.detect(canvas);
+
+        // Multi-modal detection
+        const result = await detector.detectMultiModal({
+          imageData,
+          faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
+          canvas,
+          file: selectedFile,
+          timestamp: frame.timestamp,
+        });
 
         results.push({
           frameIndex: i,
@@ -208,6 +221,9 @@ const VideoAnalyzer = () => {
           deepfake_frames: deepfakeCount,
           suspicious_segments: segments.length,
           temporal_consistency: overall.scores.temporal,
+          multi_modal: true,
+          modalities_used: ['visual', 'metadata', 'ppg'],
+          scores: overall.scores,
           anomalies_detected: allAnomalies,
         },
       });

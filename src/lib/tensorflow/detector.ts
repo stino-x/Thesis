@@ -2,14 +2,21 @@
  * TensorFlow.js Deepfake Detection Module
  * 
  * Classifies faces as real or deepfake using:
- * - Pre-trained models
+ * - Pre-trained models (MobileNetV2, MesoNet)
  * - Custom feature-based classification
+ * - Multi-modal detection (visual + physiological + audio + metadata)
  * - Ensemble methods
  */
 
 import * as tf from '@tensorflow/tfjs';
 import { DeepfakeFeatures } from '../mediapipe/features';
 import { calculateConfidence } from '@/utils/mathUtils';
+import { getMetadataAnalyzer, type MetadataAnalysisResult } from '../forensics/metadataAnalyzer';
+import { getPPGAnalyzer, type PPGAnalysisResult } from '../physiological/ppgAnalyzer';
+import { getLipSyncAnalyzer, type LipSyncAnalysisResult } from '../audio/lipSyncAnalyzer';
+import { getVoiceAnalyzer, type VoiceAnalysisResult } from '../audio/voiceAnalyzer';
+// MediaPipe type (using generic array type for compatibility)
+type NormalizedLandmark = { x: number; y: number; z: number };
 
 export interface DetectionResult {
   isDeepfake: boolean;
@@ -20,8 +27,18 @@ export interface DetectionResult {
     lighting?: number;
     temporal?: number;
     features?: number;
+    metadata?: number;
+    physiological?: number;
+    lipSync?: number;
+    voice?: number;
   };
   anomalies: string[];
+  multiModalDetails?: {
+    metadata?: MetadataAnalysisResult;
+    ppg?: PPGAnalysisResult;
+    lipSync?: LipSyncAnalysisResult;
+    voice?: VoiceAnalysisResult;
+  };
 }
 
 export class DeepfakeDetector {
@@ -461,6 +478,155 @@ export class DeepfakeDetector {
   }
 
   /**
+   * Multi-modal deepfake detection combining all available modalities
+   * 
+   * Analyzes 4 dimensions:
+   * 1. Visual (CNN + texture + features) - 40% weight
+   * 2. Physiological (blood flow/PPG) - 25% weight
+   * 3. Audio-Visual (lip-sync) - 25% weight
+   * 4. Metadata forensics - 10% weight
+   * 
+   * Optional: Voice analysis if audio-only file
+   */
+  async detectMultiModal(options: {
+    imageData?: ImageData;
+    features?: DeepfakeFeatures;
+    faceMesh?: NormalizedLandmark[];
+    canvas?: HTMLCanvasElement;
+    audioBuffer?: AudioBuffer;
+    file?: File;
+    timestamp?: number;
+  }): Promise<DetectionResult> {
+    const { imageData, features, faceMesh, canvas, audioBuffer, file, timestamp } = options;
+
+    const results: {
+      visual?: DetectionResult;
+      metadata?: MetadataAnalysisResult;
+      ppg?: PPGAnalysisResult;
+      lipSync?: LipSyncAnalysisResult;
+      voice?: VoiceAnalysisResult;
+    } = {};
+
+    // 1. Visual Analysis (if image/video available)
+    if (imageData) {
+      results.visual = await this.detectEnsemble(imageData, features);
+    }
+
+    // 2. Metadata Analysis (if file available)
+    if (file) {
+      const metadataAnalyzer = getMetadataAnalyzer();
+      results.metadata = await metadataAnalyzer.analyzeFile(file);
+    }
+
+    // 3. Physiological Analysis (if face mesh + canvas available)
+    if (faceMesh && canvas && timestamp !== undefined) {
+      const ppgAnalyzer = getPPGAnalyzer();
+      results.ppg = await ppgAnalyzer.analyzePPG(faceMesh, canvas, timestamp);
+    }
+
+    // 4. Lip-Sync Analysis (if face mesh + audio available)
+    if (faceMesh && audioBuffer && timestamp !== undefined) {
+      const lipSyncAnalyzer = getLipSyncAnalyzer();
+      results.lipSync = await lipSyncAnalyzer.analyzeLipSync(faceMesh, audioBuffer, timestamp);
+    }
+
+    // 5. Voice Analysis (if audio available)
+    if (audioBuffer) {
+      const voiceAnalyzer = getVoiceAnalyzer();
+      results.voice = await voiceAnalyzer.analyzeVoice(audioBuffer);
+    }
+
+    // Combine all results with weighted ensemble
+    return this.combineMultiModalResults(results);
+  }
+
+  /**
+   * Combine multi-modal analysis results with weighted ensemble
+   * 
+   * Weights:
+   * - Visual (CNN + features): 40%
+   * - Physiological (PPG): 25%
+   * - Audio-Visual (lip-sync): 25%
+   * - Metadata: 10%
+   * - Voice: 20% (if no video, adjusts weights)
+   */
+  private combineMultiModalResults(results: {
+    visual?: DetectionResult;
+    metadata?: MetadataAnalysisResult;
+    ppg?: PPGAnalysisResult;
+    lipSync?: LipSyncAnalysisResult;
+    voice?: VoiceAnalysisResult;
+  }): DetectionResult {
+    let totalScore = 0;
+    let totalWeight = 0;
+    const allAnomalies: string[] = [];
+    const scores: DetectionResult['scores'] = {};
+
+    // Visual (CNN + texture + features)
+    if (results.visual) {
+      const weight = 0.4;
+      totalScore += results.visual.confidence * weight;
+      totalWeight += weight;
+      allAnomalies.push(...results.visual.anomalies);
+      Object.assign(scores, results.visual.scores);
+    }
+
+    // Metadata forensics
+    if (results.metadata) {
+      const weight = 0.1;
+      totalScore += results.metadata.score * weight;
+      totalWeight += weight;
+      scores.metadata = results.metadata.score * 100;
+      allAnomalies.push(...results.metadata.anomalies);
+    }
+
+    // Physiological (blood flow/PPG)
+    if (results.ppg) {
+      const weight = 0.25;
+      totalScore += results.ppg.score * weight;
+      totalWeight += weight;
+      scores.physiological = results.ppg.score * 100;
+      allAnomalies.push(...results.ppg.anomalies);
+    }
+
+    // Audio-Visual (lip-sync)
+    if (results.lipSync) {
+      const weight = 0.25;
+      totalScore += results.lipSync.score * weight;
+      totalWeight += weight;
+      scores.lipSync = results.lipSync.score * 100;
+      allAnomalies.push(...results.lipSync.anomalies);
+    }
+
+    // Voice artifacts (if available)
+    if (results.voice) {
+      // Adjust weight based on whether we have video
+      const weight = results.visual ? 0.15 : 0.4; // Higher weight if audio-only
+      totalScore += results.voice.score * weight;
+      totalWeight += weight;
+      scores.voice = results.voice.score * 100;
+      allAnomalies.push(...results.voice.anomalies);
+    }
+
+    // Normalize score
+    const finalScore = totalWeight > 0 ? totalScore / totalWeight : 0;
+    const confidence = Math.abs(finalScore - 0.5) * 2; // Convert to confidence 0-1
+
+    return {
+      isDeepfake: finalScore > 0.5,
+      confidence,
+      scores,
+      anomalies: Array.from(new Set(allAnomalies)), // Remove duplicates
+      multiModalDetails: {
+        metadata: results.metadata,
+        ppg: results.ppg,
+        lipSync: results.lipSync,
+        voice: results.voice,
+      },
+    };
+  }
+
+  /**
    * Combine multiple detection results
    */
   combineResults(results: DetectionResult[]): DetectionResult {
@@ -480,7 +646,17 @@ export class DeepfakeDetector {
     );
 
     const combinedScores: DetectionResult['scores'] = {};
-    const scoreKeys = ['faceMesh', 'texture', 'lighting', 'temporal', 'features'] as const;
+    const scoreKeys = [
+      'faceMesh', 
+      'texture', 
+      'lighting', 
+      'temporal', 
+      'features',
+      'metadata',
+      'physiological',
+      'lipSync',
+      'voice'
+    ] as const;
 
     scoreKeys.forEach(key => {
       const scores = results
