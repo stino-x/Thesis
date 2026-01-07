@@ -169,10 +169,21 @@ const WebcamDetector = () => {
       featureAggregator.current.processFrame(meshResult.landmarks, leftEAR, rightEAR);
       const features = featureAggregator.current.getFeatures(meshResult.landmarks);
 
-      // 4. Classify
+      // 4. Multi-Modal Classification
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
-      const result = await detector.detectFromFeatures(features);
+      
+      // Get image data for multi-modal
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // Use multi-modal detection with PPG
+      const result = await detector.detectMultiModal({
+        imageData,
+        features,
+        faceMesh: meshResult.landmarks,
+        canvas,
+        timestamp: performance.now(),
+      });
 
       setCurrentResult(result);
       setDetectionCount(prev => prev + 1);
