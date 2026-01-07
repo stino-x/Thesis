@@ -23,13 +23,13 @@ Here are some of the more widely used or advanced tools for detecting deepfakes 
 
 If you decide to build your own deepfake detection tool, you don’t have to reinvent the wheel. Instead, you can build a **“next-gen hybrid detector”**: combine multiple detection strategies + some smart extras. Ideas:
 
-### **1. Multi-modal detection (not just visual)**
+<!-- ### **1. Multi-modal detection (not just visual)**
 
 * Combine **visual analysis** (face landmarks, texture anomalies, pixel artifacts) with **physiological cues** — e.g. like FakeCatcher does, detect unnatural skin/blood-flow patterns or inconsistent micro-blinks / micro-movements.
 * Add **audio analysis** (lip-sync vs voice, unnatural voice modulations) for video, especially if audio is present.
 * Use **metadata analysis** (file metadata, encoding artefacts, metadata timestamp mismatches) — sometimes deepfakes leave traces there.
 
-This multi-modal approach raises the chance of detecting malicious or high-quality deepfakes that evade single-mode detection.
+This multi-modal approach raises the chance of detecting malicious or high-quality deepfakes that evade single-mode detection.[DONE!!!!] -->
 
 <!-- ### **2. Provide explainability / forensic output**
 

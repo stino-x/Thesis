@@ -108,40 +108,45 @@ const ImageAnalyzer = () => {
       await faceMesh.waitForInitialization();
       const meshResult = await faceMesh.detect(canvas);
 
-      // 6. Get detection result
+      // 6. Multi-Modal Detection
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
+
+      // Prepare image data
+      const imageData = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
 
       let detectionResult: DetectionResult;
 
       if (meshResult.detected && meshResult.landmarks) {
-        // Analyze features if landmarks available
+        // Full multi-modal analysis with face mesh
         const eyeLandmarks = faceMesh.getEyeLandmarks(meshResult.landmarks);
         const leftEAR = faceMesh.calculateEyeAspectRatio(eyeLandmarks.leftEye);
         const rightEAR = faceMesh.calculateEyeAspectRatio(eyeLandmarks.rightEye);
 
-        // For single image, we can't track temporal features
-        // So we'll analyze spatial features only
         const features = {
           blinkRate: 0, // Can't measure from single image
           eyeAspectRatio: (leftEAR + rightEAR) / 2,
-          landmarkJitter: 0, // Can't measure from single image
-          faceSymmetry: 0.8, // Placeholder
+          landmarkJitter: 0,
+          faceSymmetry: 0.8,
           mouthMovement: 0,
           headPoseStability: 1,
         };
 
-        const featureResult = await detector.detectFromFeatures(features);
-        const tensor = canvasToTensor(canvas);
-        const imageResult = await detector.detectFromImage(tensor);
-        tensor.dispose();
-
-        detectionResult = detector.combineResults([featureResult, imageResult]);
+        // Multi-modal detection with metadata + visual + PPG
+        detectionResult = await detector.detectMultiModal({
+          imageData,
+          features,
+          faceMesh: meshResult.landmarks,
+          canvas,
+          file: selectedFile,
+          timestamp: performance.now(),
+        });
       } else {
-        // Fallback to image-only analysis
-        const tensor = canvasToTensor(canvas);
-        detectionResult = await detector.detectFromImage(tensor);
-        tensor.dispose();
+        // Fallback to visual + metadata only
+        detectionResult = await detector.detectMultiModal({
+          imageData,
+          file: selectedFile,
+        });
       }
 
       setResult(detectionResult);
@@ -160,7 +165,13 @@ const ImageAnalyzer = () => {
         metadata: {
           face_detected: faces[0].detected,
           resolution: `${img.width}x${img.height}`,
-          features_analyzed: meshResult.detected ? ['face_mesh', 'texture'] : ['texture'],
+          multi_modal: true,
+          modalities_used: [
+            'visual',
+            'metadata',
+            ...(meshResult.detected ? ['ppg'] : []),
+          ],
+          scores: detectionResult.scores,
           anomalies_detected: detectionResult.anomalies,
         },
       });
