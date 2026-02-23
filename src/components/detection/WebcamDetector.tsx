@@ -16,7 +16,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Video, VideoOff, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { Video, VideoOff, RefreshCw, AlertCircle, CheckCircle, Download } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 
 import { getWebcamStream, stopMediaStream } from '@/utils/videoUtils';
@@ -24,6 +25,7 @@ import { drawBoundingBox, drawLandmarks, drawConfidenceOverlay } from '@/utils/c
 import { getFaceDetector, getFaceMesh, FeatureAggregator } from '@/lib/mediapipe';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useSettings } from '@/hooks/useSettings';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 const WebcamDetector = () => {
@@ -35,11 +37,11 @@ const WebcamDetector = () => {
   const [isActive, setIsActive] = useState(false);
   const [currentResult, setCurrentResult] = useState<DetectionResult | null>(null);
   const [fps, setFps] = useState(0);
-  const [showOverlay, setShowOverlay] = useState(true);
   const [continuousMode, setContinuousMode] = useState(true);
   const [detectionCount, setDetectionCount] = useState(0);
 
   const { logDetection, getTimingHelper } = useAuditLog();
+  const { settings } = useSettings();
   const featureAggregator = useRef(new FeatureAggregator());
   const lastProcessTime = useRef(Date.now());
   const frameCount = useRef(0);
@@ -115,9 +117,11 @@ const WebcamDetector = () => {
     // Draw video frame
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Process every 100ms for performance
+    // Process based on processingSpeed setting
+    const intervals: Record<string, number> = { fast: 200, balanced: 100, accurate: 50 };
+    const interval = intervals[settings.processingSpeed] || 100;
     const now = Date.now();
-    if (now - lastProcessTime.current >= 100) {
+    if (now - lastProcessTime.current >= interval) {
       await detectInFrame(canvas, ctx);
       lastProcessTime.current = now;
 
@@ -172,6 +176,7 @@ const WebcamDetector = () => {
       // 4. Multi-Modal Classification
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
+      detector.setThreshold(1 - settings.sensitivity);
       
       // Get image data for multi-modal
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -188,11 +193,11 @@ const WebcamDetector = () => {
       setCurrentResult(result);
       setDetectionCount(prev => prev + 1);
 
-      // 5. Draw Overlay
-      if (showOverlay && face.boundingBox) {
-        const bbox = face.boundingBox;
-        const color = result.isDeepfake ? '#ff0000' : '#00ff00';
+      // 5. Draw Overlay (respects individual settings)
+      const color = result.isDeepfake ? '#ff0000' : '#00ff00';
 
+      if (settings.showBoundingBoxes && face.boundingBox) {
+        const bbox = face.boundingBox;
         drawBoundingBox(
           ctx,
           {
@@ -211,8 +216,9 @@ const WebcamDetector = () => {
           y: lm.y * canvas.height,
         }));
         drawLandmarks(ctx, scaledLandmarks, color, 1);
+      }
 
-        // Draw confidence
+      if (settings.showConfidenceBadge) {
         drawConfidenceOverlay(ctx, result.confidence, result.isDeepfake, 10, 40);
       }
 
@@ -284,6 +290,31 @@ const WebcamDetector = () => {
     }
   };
 
+  const exportReport = () => {
+    if (!currentResult) return;
+
+    const report = {
+      type: 'webcam_detection',
+      analysisDate: new Date().toISOString(),
+      result: currentResult.isDeepfake ? 'DEEPFAKE' : 'AUTHENTIC',
+      confidence: (currentResult.confidence * 100).toFixed(2) + '%',
+      totalDetections: detectionCount,
+      scores: currentResult.scores,
+      anomalies: currentResult.anomalies,
+      multiModalDetails: currentResult.multiModalDetails,
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `webcam_report_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast.success('Report exported');
+  };
+
   return (
     <div className="space-y-6">
       {/* Controls */}
@@ -318,19 +349,20 @@ const WebcamDetector = () => {
               <RefreshCw className="h-4 w-4" />
               Capture Snapshot
             </Button>
+
+            <Button
+              onClick={exportReport}
+              disabled={!currentResult}
+              variant="outline"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export Report
+            </Button>
           </div>
 
           {/* Options */}
           <div className="flex flex-wrap gap-6">
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="overlay"
-                checked={showOverlay}
-                onCheckedChange={setShowOverlay}
-              />
-              <Label htmlFor="overlay">Show Overlay</Label>
-            </div>
-
             <div className="flex items-center space-x-2">
               <Switch
                 id="continuous"
@@ -456,6 +488,41 @@ const WebcamDetector = () => {
                       ))}
                     </ul>
                   </div>
+                )}
+
+                {/* Multi-Modal Details */}
+                {currentResult.multiModalDetails && (
+                  <Accordion type="single" collapsible className="w-full">
+                    {currentResult.multiModalDetails.ppg && (
+                      <AccordionItem value="ppg">
+                        <AccordionTrigger className="text-sm font-medium">Physiological (PPG)</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>Score:</strong> {(currentResult.multiModalDetails.ppg.score * 100).toFixed(1)}%</p>
+                            {currentResult.multiModalDetails.ppg.anomalies.length > 0 && (
+                              <ul>{currentResult.multiModalDetails.ppg.anomalies.map((a, i) => <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>)}</ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+                    {currentResult.multiModalDetails.metadata && (
+                      <AccordionItem value="metadata">
+                        <AccordionTrigger className="text-sm font-medium">Metadata Forensics</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>Score:</strong> {(currentResult.multiModalDetails.metadata.score * 100).toFixed(1)}%</p>
+                            {currentResult.multiModalDetails.metadata.details.suspiciousPatterns.map((p, i) => (
+                              <p key={i} className="text-orange-500">⚠ {p}</p>
+                            ))}
+                            {currentResult.multiModalDetails.metadata.details.suspiciousPatterns.length === 0 && (
+                              <p className="text-green-500">✓ No suspicious patterns</p>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+                  </Accordion>
                 )}
               </div>
             ) : (

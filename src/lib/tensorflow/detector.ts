@@ -47,9 +47,22 @@ export class DeepfakeDetector {
   private isInitialized = false;
   private modelLoadError: boolean = false;
   private modelType: 'mesonet' | 'mobilenet' | 'none' = 'none';
+  private threshold = 0.5;
 
   constructor() {
     this.initialize();
+  }
+
+  /**
+   * Set the detection threshold (mapped from settings sensitivity)
+   * Lower threshold = more likely to flag deepfakes (higher sensitivity)
+   */
+  setThreshold(threshold: number): void {
+    this.threshold = Math.max(0.1, Math.min(0.95, threshold));
+  }
+
+  getThreshold(): number {
+    return this.threshold;
   }
 
   /**
@@ -613,7 +626,7 @@ export class DeepfakeDetector {
     const confidence = Math.abs(finalScore - 0.5) * 2; // Convert to confidence 0-1
 
     return {
-      isDeepfake: finalScore > 0.5,
+      isDeepfake: finalScore > this.threshold,
       confidence,
       scores,
       anomalies: Array.from(new Set(allAnomalies)), // Remove duplicates
