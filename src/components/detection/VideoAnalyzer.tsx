@@ -18,10 +18,12 @@ import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Upload, Video as VideoIcon, AlertCircle, CheckCircle, Download, Play, Pause, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { loadVideo, extractFrames, validateVideoFile, formatFileSize, formatDuration } from '@/utils/videoUtils';
-import { getDeepfakeDetector, canvasToTensor } from '@/lib/tensorflow';
+import { getDeepfakeDetector } from '@/lib/tensorflow';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useSettings } from '@/hooks/useSettings';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 interface FrameResult {
@@ -55,6 +57,7 @@ const VideoAnalyzer = () => {
   const [processingTime, setProcessingTime] = useState<number>(0);
 
   const { logDetection, getTimingHelper } = useAuditLog();
+  const { settings } = useSettings();
 
   useEffect(() => {
     const video = videoRef.current;
@@ -125,8 +128,20 @@ const VideoAnalyzer = () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // Extract frames (sample every 0.5 seconds)
-      const frameInterval = 0.5;
+      // Extract audio from video for lip-sync and voice analysis
+      let audioBuffer: AudioBuffer | null = null;
+      try {
+        const audioContext = new AudioContext();
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        console.log('✅ Audio extracted from video for multi-modal analysis');
+      } catch (audioError) {
+        console.warn('⚠️ Could not extract audio from video (may have no audio track):', audioError);
+      }
+
+      // Extract frames based on processingSpeed setting
+      const intervalMap: Record<string, number> = { fast: 1.0, balanced: 0.5, accurate: 0.25 };
+      const frameInterval = intervalMap[settings.processingSpeed] || 0.5;
       const frames = await extractFrames(video, canvas, frameInterval);
 
       if (frames.length === 0) {
@@ -135,9 +150,10 @@ const VideoAnalyzer = () => {
         return;
       }
 
-      // Initialize detector
+      // Initialize detector with sensitivity from settings
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
+      detector.setThreshold(1 - settings.sensitivity); // Lower sensitivity = higher threshold
 
       // Analyze frames with multi-modal detection
       const results: FrameResult[] = [];
@@ -163,6 +179,7 @@ const VideoAnalyzer = () => {
           imageData,
           faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
           canvas,
+          audioBuffer: audioBuffer ?? undefined,
           file: selectedFile,
           timestamp: frame.timestamp,
         });
@@ -188,13 +205,25 @@ const VideoAnalyzer = () => {
         new Set(results.flatMap((r) => r.result.anomalies))
       );
 
+      // Aggregate per-frame modality scores
+      const scoreKeys = ['faceMesh', 'texture', 'lighting', 'features', 'metadata', 'physiological', 'lipSync', 'voice'] as const;
+      const aggregatedScores: Record<string, number> = { temporal: calculateTemporalConsistency(results) };
+      for (const key of scoreKeys) {
+        const vals = results.map(r => r.result.scores[key]).filter((v): v is number => v !== undefined);
+        if (vals.length > 0) {
+          aggregatedScores[key] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        }
+      }
+
+      // Aggregate multiModalDetails from last frame (most complete)
+      const lastFrameDetails = results[results.length - 1]?.result.multiModalDetails;
+
       const overall: DetectionResult = {
         isDeepfake,
         confidence: avgConfidence,
-        scores: {
-          temporal: calculateTemporalConsistency(results),
-        },
+        scores: aggregatedScores,
         anomalies: allAnomalies,
+        multiModalDetails: lastFrameDetails,
       };
 
       setOverallResult(overall);
@@ -222,7 +251,12 @@ const VideoAnalyzer = () => {
           suspicious_segments: segments.length,
           temporal_consistency: overall.scores.temporal,
           multi_modal: true,
-          modalities_used: ['visual', 'metadata', 'ppg'],
+          modalities_used: [
+            'visual',
+            'metadata',
+            'ppg',
+            ...(audioBuffer ? ['lipSync', 'voice'] : []),
+          ],
           scores: overall.scores,
           anomalies_detected: allAnomalies,
         },
@@ -353,6 +387,7 @@ const VideoAnalyzer = () => {
       })),
       scores: overallResult.scores,
       anomalies: overallResult.anomalies,
+      multiModalDetails: overallResult.multiModalDetails,
     };
 
     const blob = new Blob([JSON.stringify(report, null, 2)], {
@@ -675,6 +710,88 @@ const VideoAnalyzer = () => {
                           <li key={index}>• {anomaly.replace(/_/g, ' ')}</li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* Multi-Modal Details */}
+                  {overallResult.multiModalDetails && (
+                    <Accordion type="single" collapsible className="w-full">
+                      {overallResult.multiModalDetails.metadata && (
+                        <AccordionItem value="metadata">
+                          <AccordionTrigger className="text-sm font-medium">Metadata Forensics</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <p><strong>Score:</strong> {(overallResult.multiModalDetails.metadata.score * 100).toFixed(1)}%</p>
+                              <p><strong>Confidence:</strong> {(overallResult.multiModalDetails.metadata.confidence * 100).toFixed(1)}%</p>
+                              {overallResult.multiModalDetails.metadata.details.suspiciousPatterns.map((p, i) => (
+                                <p key={i} className="text-orange-500">⚠ {p}</p>
+                              ))}
+                              {overallResult.multiModalDetails.metadata.details.suspiciousPatterns.length === 0 && (
+                                <p className="text-green-500">✓ No suspicious patterns</p>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                      {overallResult.multiModalDetails.ppg && (
+                        <AccordionItem value="ppg">
+                          <AccordionTrigger className="text-sm font-medium">Physiological (PPG)</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <p><strong>Score:</strong> {(overallResult.multiModalDetails.ppg.score * 100).toFixed(1)}%</p>
+                              <p><strong>Confidence:</strong> {(overallResult.multiModalDetails.ppg.confidence * 100).toFixed(1)}%</p>
+                              {overallResult.multiModalDetails.ppg.anomalies.length > 0 && (
+                                <ul>{overallResult.multiModalDetails.ppg.anomalies.map((a, i) => <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>)}</ul>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                      {overallResult.multiModalDetails.lipSync && (
+                        <AccordionItem value="lipSync">
+                          <AccordionTrigger className="text-sm font-medium">Lip-Sync Analysis</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <p><strong>Score:</strong> {(overallResult.multiModalDetails.lipSync.score * 100).toFixed(1)}%</p>
+                              <p><strong>Confidence:</strong> {(overallResult.multiModalDetails.lipSync.confidence * 100).toFixed(1)}%</p>
+                              {overallResult.multiModalDetails.lipSync.anomalies.map((a, i) => (
+                                <p key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</p>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                      {overallResult.multiModalDetails.voice && (
+                        <AccordionItem value="voice">
+                          <AccordionTrigger className="text-sm font-medium">Voice Analysis</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <p><strong>Score:</strong> {(overallResult.multiModalDetails.voice.score * 100).toFixed(1)}%</p>
+                              <p><strong>Confidence:</strong> {(overallResult.multiModalDetails.voice.confidence * 100).toFixed(1)}%</p>
+                              {overallResult.multiModalDetails.voice.anomalies.map((a, i) => (
+                                <p key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</p>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
+                  )}
+
+                  {/* Aggregated Score Breakdown */}
+                  {Object.keys(overallResult.scores).length > 1 && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm">Score Breakdown</h4>
+                      <div className="space-y-1">
+                        {Object.entries(overallResult.scores).map(([key, val]) => (
+                          val !== undefined && (
+                            <div key={key} className="flex justify-between text-sm">
+                              <span className="text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                              <span className="font-medium">{(val * 100).toFixed(1)}%</span>
+                            </div>
+                          )
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
