@@ -4,10 +4,13 @@ import { Loader2 } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 // Lazy-load pages to keep the auth bundle light and defer ML-heavy code
 const Index = lazy(() => import("./pages/Index"));
+const Detection = lazy(() => import("./pages/Detection"));
+const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -26,9 +29,10 @@ const LoadingScreen = () => (
 
 const App = () => (
   <AuthProvider>
-    <TooltipProvider>
-      <Sonner />
-      <Suspense fallback={<LoadingScreen />}>
+    <SettingsProvider>
+      <TooltipProvider>
+        <Sonner />
+        <Suspense fallback={<LoadingScreen />}>
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
@@ -46,6 +50,22 @@ const App = () => (
             }
           />
           <Route
+            path="/detect"
+            element={
+              <ProtectedRoute>
+                <Detection />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit-logs"
+            element={
+              <ProtectedRoute>
+                <AuditLogsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/profile"
             element={
               <ProtectedRoute>
@@ -57,8 +77,9 @@ const App = () => (
           {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </Suspense>
-    </TooltipProvider>
+        </Suspense>
+      </TooltipProvider>
+    </SettingsProvider>
   </AuthProvider>
 );
 

@@ -1,8 +1,8 @@
-import { Settings, Github, Info, Moon, Sun } from "lucide-react";
+import { Settings, Github, Info, Moon, Sun, Shield, History } from "lucide-react";
 import { Button } from "./ui/button";
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from '@/hooks/useAuth';
 import { UserMenu } from "./UserMenu";
 
@@ -14,6 +14,9 @@ interface HeaderProps {
 export const Header = ({ onSettingsClick, onAboutClick }: HeaderProps) => {
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
+  const location = useLocation();
+
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <motion.header 
@@ -36,13 +39,37 @@ export const Header = ({ onSettingsClick, onAboutClick }: HeaderProps) => {
           </Link>
         </motion.div>
 
-        <nav className="hidden md:flex items-center gap-4">
+        <nav className="hidden md:flex items-center gap-1">
+          {user && (
+            <>
+              <Button
+                variant={isActive('/detect') ? 'secondary' : 'ghost'}
+                size="sm"
+                asChild
+              >
+                <Link to="/detect" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Detection
+                </Link>
+              </Button>
+              <Button
+                variant={isActive('/audit-logs') ? 'secondary' : 'ghost'}
+                size="sm"
+                asChild
+              >
+                <Link to="/audit-logs" className="flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Audit Logs
+                </Link>
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="sm" onClick={onAboutClick}>
             About
           </Button>
           <Button variant="ghost" size="sm" asChild>
             <a
-              href="https://github.com"
+              href="https://github.com/stino-x/Thesis"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2"

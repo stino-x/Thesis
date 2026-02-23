@@ -6,9 +6,15 @@
  */
 
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Camera, Image, Video, Shield, Info } from 'lucide-react';
+
+import { Header } from '@/components/Header';
+import { AnimatedBackground } from '@/components/AnimatedBackground';
+import { SettingsModal } from '@/components/SettingsModal';
+import { AboutModal } from '@/components/AboutModal';
 
 import WebcamDetector from '@/components/detection/WebcamDetector';
 import ImageAnalyzer from '@/components/detection/ImageAnalyzer';
@@ -16,10 +22,26 @@ import VideoAnalyzer from '@/components/detection/VideoAnalyzer';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Detection = () => {
-  const [activeTab, setActiveTab] = useState<string>('webcam');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'webcam';
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
+    <div className="min-h-screen flex flex-col relative">
+      <AnimatedBackground />
+      <Header
+        onSettingsClick={() => setSettingsOpen(true)}
+        onAboutClick={() => setAboutOpen(true)}
+      />
+
+      <main className="flex-1 container mx-auto py-8 px-4 max-w-7xl relative z-10">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
@@ -44,7 +66,7 @@ const Detection = () => {
       </div>
 
       {/* Detection Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
           <TabsTrigger value="webcam" className="gap-2">
             <Camera className="h-4 w-4" />
@@ -201,6 +223,10 @@ const Detection = () => {
           </div>
         </CardContent>
       </Card>
+      </main>
+
+      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <AboutModal open={aboutOpen} onOpenChange={setAboutOpen} />
     </div>
   );
 };

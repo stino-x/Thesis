@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Settings, Info, LogOut } from "lucide-react";
+import { User, Settings, Info, LogOut, Shield, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from '@/hooks/useAuth';
 
@@ -60,6 +60,14 @@ export const UserMenu = ({ onSettingsClick, onAboutClick }: UserMenuProps) => {
         <DropdownMenuItem onClick={handleProfileClick} className="py-2.5 cursor-pointer font-medium">
           <User className="mr-3 h-4 w-4" />
           <span>Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/detect')} className="py-2.5 cursor-pointer font-medium md:hidden">
+          <Shield className="mr-3 h-4 w-4" />
+          <span>Detection</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/audit-logs')} className="py-2.5 cursor-pointer font-medium md:hidden">
+          <History className="mr-3 h-4 w-4" />
+          <span>Audit Logs</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onSettingsClick} className="py-2.5 cursor-pointer font-medium md:hidden">
           <Settings className="mr-3 h-4 w-4" />
