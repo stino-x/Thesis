@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { Mail, Lock, Loader2, Eye, EyeOff, User } from 'lucide-react'
 import { AnimatedBackground } from '@/components/AnimatedBackground'
@@ -26,7 +26,6 @@ export default function Signup() {
   const [userEmail, setUserEmail] = useState('')
   const { signUp, signInWithOAuth } = useAuth()
   const navigate = useNavigate()
-  const { toast } = useToast()
 
   const validatePassword = (password: string) => {
     return password.length >= 6
@@ -36,29 +35,17 @@ export default function Signup() {
     e.preventDefault()
     
     if (!acceptTerms) {
-      toast({
-        title: 'Terms Required',
-        description: 'Please accept the terms and conditions.',
-        variant: 'destructive',
-      })
+      toast.error('Please accept the terms and conditions.')
       return
     }
 
     if (!validatePassword(password)) {
-      toast({
-        title: 'Weak Password',
-        description: 'Password must be at least 6 characters long.',
-        variant: 'destructive',
-      })
+      toast.error('Password must be at least 6 characters long.')
       return
     }
 
     if (password !== confirmPassword) {
-      toast({
-        title: 'Passwords Don\'t Match',
-        description: 'Please make sure your passwords match.',
-        variant: 'destructive',
-      })
+      toast.error('Please make sure your passwords match.')
       return
     }
 
@@ -67,11 +54,7 @@ export default function Signup() {
     const { data, error } = await signUp(email, password, name)
 
     if (error) {
-      toast({
-        title: 'Signup Failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error(error.message)
       setLoading(false)
     } else {
       setUserEmail(email)
@@ -82,10 +65,7 @@ export default function Signup() {
         setIsEmailSent(true)
       } else {
         // If email is already confirmed (rare case), go to login
-        toast({
-          title: 'Account Created!',
-          description: 'You can now sign in to your account.',
-        })
+        toast.success('Account created! You can now sign in.')
         navigate('/login')
       }
     }
@@ -96,11 +76,7 @@ export default function Signup() {
     const { error } = await signInWithOAuth(provider)
     
     if (error) {
-      toast({
-        title: 'OAuth Failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error(error.message)
       setOauthLoading(null)
     }
     // Note: On success, user will be redirected to OAuth provider
@@ -119,25 +95,25 @@ export default function Signup() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="glass-strong">
+          <Card className="glass-strong border-border/50">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 <Mail className="h-16 w-16 text-green-500" />
               </div>
-              <CardTitle className="text-2xl text-white">Check Your Email</CardTitle>
-              <CardDescription className="text-gray-300">
+              <CardTitle className="text-2xl">Check Your Email</CardTitle>
+              <CardDescription>
                 We've sent you a confirmation link
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-center space-y-4">
-                <p className="text-sm text-gray-300">
-                  We've sent a confirmation link to <strong className="text-white">{userEmail}</strong>
+                <p className="text-sm text-muted-foreground">
+                  We've sent a confirmation link to <strong className="text-foreground">{userEmail}</strong>
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Please click the link in the email to verify your account before signing in.
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Didn't receive the email? Check your spam folder or contact support.
                 </p>
               </div>
@@ -152,13 +128,13 @@ export default function Signup() {
                     setName('')
                   }}
                   variant="outline" 
-                  className="w-full border-white/20 text-white hover:bg-white/10"
+                  className="w-full"
                 >
                   Sign Up with Different Email
                 </Button>
                 
                 <Link to="/login">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                  <Button className="w-full gradient-hero">
                     Go to Login
                   </Button>
                 </Link>
@@ -293,13 +269,13 @@ export default function Signup() {
                 />
                 <Label htmlFor="terms" className="text-sm font-normal cursor-pointer">
                   I agree to the{' '}
-                  <Link to="/terms" className="text-primary hover:underline">
+                  <a href="#" onClick={(e) => { e.preventDefault(); toast.info('Terms of Service: This is a BSc thesis research project. Your data is processed locally in-browser. Detection results are logged to your Supabase account for audit purposes.') }} className="text-primary hover:underline">
                     Terms of Service
-                  </Link>{' '}
+                  </a>{' '}
                   and{' '}
-                  <Link to="/privacy" className="text-primary hover:underline">
+                  <a href="#" onClick={(e) => { e.preventDefault(); toast.info('Privacy Policy: Media files are analyzed client-side and never uploaded to any server. Audit logs are stored in your personal Supabase database.') }} className="text-primary hover:underline">
                     Privacy Policy
-                  </Link>
+                  </a>
                 </Label>
               </div>
               <Button

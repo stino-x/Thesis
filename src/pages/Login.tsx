@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react'
 import { AnimatedBackground } from '@/components/AnimatedBackground'
@@ -19,7 +19,6 @@ export default function Login() {
   const [oauthLoading, setOauthLoading] = useState<'google' | 'github' | null>(null)
   const { signIn, signInWithOAuth } = useAuth()
   const navigate = useNavigate()
-  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,17 +35,10 @@ export default function Login() {
         description = 'Please check your email and click the confirmation link before signing in. Check your spam folder if you don\'t see it.'
       }
       
-      toast({
-        title: 'Login Failed',
-        description: description,
-        variant: 'destructive',
-      })
+      toast.error(description)
       setLoading(false)
     } else {
-      toast({
-        title: 'Welcome back!',
-        description: 'You have successfully logged in.',
-      })
+      toast.success('Welcome back!')
       navigate('/')
     }
   }
@@ -55,11 +47,7 @@ const handleOAuthSignIn = async (provider: 'google' | 'github') => {
     const { error } = await signInWithOAuth(provider)
     
     if (error) {
-      toast({
-        title: 'OAuth Failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error(error.message)
       setOauthLoading(null)
     }
     // Note: On success, user will be redirected to OAuth provider
