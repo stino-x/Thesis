@@ -52,25 +52,25 @@ export default function ForgotPassword() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="glass-strong">
+          <Card className="glass-strong border-border/50">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 <CheckCircle className="h-16 w-16 text-green-500" />
               </div>
-              <CardTitle className="text-2xl text-white">Check Your Email</CardTitle>
-              <CardDescription className="text-gray-300">
+              <CardTitle className="text-2xl">Check Your Email</CardTitle>
+              <CardDescription>
                 We've sent a password reset link to your email address
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-center space-y-4">
-                <p className="text-sm text-gray-300">
-                  We've sent a password reset link to <strong>{email}</strong>
+                <p className="text-sm text-muted-foreground">
+                  We've sent a password reset link to <strong className="text-foreground">{email}</strong>
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Click the link in the email to reset your password. The link will expire in 24 hours.
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Didn't receive the email? Check your spam folder or try again.
                 </p>
               </div>
@@ -79,13 +79,13 @@ export default function ForgotPassword() {
                 <Button 
                   onClick={() => setIsEmailSent(false)}
                   variant="outline" 
-                  className="w-full border-white/20 text-white hover:bg-white/10"
+                  className="w-full"
                 >
                   Try Different Email
                 </Button>
                 
                 <Link to="/login">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                  <Button className="w-full gradient-hero">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Login
                   </Button>
@@ -108,17 +108,17 @@ export default function ForgotPassword() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Card className="glass-strong">
+        <Card className="glass-strong border-border/50">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl text-white">Reset Your Password</CardTitle>
-            <CardDescription className="text-gray-300">
+            <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+            <CardDescription>
               Enter your email address and we'll send you a reset link
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-white flex items-center gap-2">
+                <Label htmlFor="email" className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
                   Email Address
                 </Label>
@@ -128,7 +128,6 @@ export default function ForgotPassword() {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="bg-black/20 border-white/20 text-white placeholder:text-gray-400"
                   required
                 />
               </div>
@@ -137,7 +136,7 @@ export default function ForgotPassword() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full gradient-hero"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -154,7 +153,7 @@ export default function ForgotPassword() {
             <div className="text-center">
               <Link 
                 to="/login"
-                className="text-sm text-purple-400 hover:text-purple-300 flex items-center justify-center gap-2"
+                className="text-sm text-primary hover:text-primary/80 flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Login
