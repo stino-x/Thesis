@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,18 +18,44 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [isReady, setIsReady] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we have the required tokens
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    
-    if (!accessToken || !refreshToken) {
-      setError('Invalid or expired reset link. Please request a new one.');
-    }
-  }, [searchParams]);
+    // Supabase automatically picks up #access_token from the URL hash
+    // via onAuthStateChange(PASSWORD_RECOVERY). We just need to verify
+    // there's a valid session established.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsReady(true);
+          setError('');
+        } else if (event === 'SIGNED_IN' && session) {
+          // Also accept if already signed in via the recovery link
+          setIsReady(true);
+          setError('');
+        }
+      }
+    );
+
+    // Also check current session (link may have already been processed)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsReady(true);
+      } else {
+        // Give a moment for the hash fragment to be processed
+        setTimeout(() => {
+          supabase.auth.getSession().then(({ data: { session: s } }) => {
+            if (!s) {
+              setError('Invalid or expired reset link. Please request a new one.');
+            }
+          });
+        }, 2000);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,23 +115,23 @@ export default function ResetPassword() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="glass-strong">
+          <Card className="glass-strong border-border/50">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 <CheckCircle className="h-16 w-16 text-green-500" />
               </div>
-              <CardTitle className="text-2xl text-white">Password Updated!</CardTitle>
-              <CardDescription className="text-gray-300">
+              <CardTitle className="text-2xl">Password Updated!</CardTitle>
+              <CardDescription>
                 Your password has been successfully updated
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 You will be redirected to the login page shortly...
               </p>
               <Button 
                 onClick={() => navigate('/login')}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="gradient-hero"
               >
                 Go to Login
               </Button>
@@ -126,17 +152,17 @@ export default function ResetPassword() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Card className="glass-strong">
+        <Card className="glass-strong border-border/50">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl text-white">Set New Password</CardTitle>
-            <CardDescription className="text-gray-300">
+            <CardTitle className="text-2xl">Set New Password</CardTitle>
+            <CardDescription>
               Enter your new password below
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-white flex items-center gap-2">
+                <Label htmlFor="password" className="flex items-center gap-2">
                   <Lock className="h-4 w-4" />
                   New Password
                 </Label>
@@ -147,23 +173,23 @@ export default function ResetPassword() {
                     placeholder="Enter new password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-black/20 border-white/20 text-white placeholder:text-gray-400 pr-10"
+                    className="pr-10"
                     required
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
                   </Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-white flex items-center gap-2">
+                <Label htmlFor="confirmPassword" className="flex items-center gap-2">
                   <Lock className="h-4 w-4" />
                   Confirm Password
                 </Label>
@@ -174,17 +200,17 @@ export default function ResetPassword() {
                     placeholder="Confirm new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="bg-black/20 border-white/20 text-white placeholder:text-gray-400 pr-10"
+                    className="pr-10"
                     required
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
                   </Button>
                 </div>
               </div>
@@ -197,7 +223,7 @@ export default function ResetPassword() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full gradient-hero"
                 disabled={isLoading}
               >
                 {isLoading ? (
