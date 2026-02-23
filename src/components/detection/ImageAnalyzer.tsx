@@ -9,33 +9,41 @@
  * - Export report capability
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Upload, Image as ImageIcon, AlertCircle, CheckCircle, Download, RefreshCw } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Upload, Image as ImageIcon, AlertCircle, CheckCircle, Download, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { loadImage, validateImageFile, formatFileSize } from '@/utils/videoUtils';
-import { drawImageScaled } from '@/utils/canvasUtils';
+import { drawImageScaled, drawBoundingBox, drawLandmarks, drawConfidenceOverlay, createHeatmap } from '@/utils/canvasUtils';
 import { waitForOpenCV, canvasToMat, preprocessForML, deleteMat } from '@/lib/opencv';
 import { getFaceDetector, getFaceMesh } from '@/lib/mediapipe';
 import { getDeepfakeDetector, canvasToTensor } from '@/lib/tensorflow';
+import { performELA, type ELAResult } from '@/lib/forensics/elaAnalyzer';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useSettings } from '@/hooks/useSettings';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 const ImageAnalyzer = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
+  const [elaResult, setElaResult] = useState<ELAResult | null>(null);
   const [processingTime, setProcessingTime] = useState<number>(0);
+  const [showOverlays, setShowOverlays] = useState(true);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const { logDetection, getTimingHelper } = useAuditLog();
+  const { settings } = useSettings();
 
   const handleFileSelect = (file: File) => {
     if (!validateImageFile(file)) {
@@ -76,6 +84,7 @@ const ImageAnalyzer = () => {
       // 1. Load image
       const img = await loadImage(selectedFile);
       drawImageScaled(canvas, img);
+      setImageDimensions({ width: img.width, height: img.height });
 
       // 2. Wait for OpenCV
       await waitForOpenCV();
@@ -111,6 +120,7 @@ const ImageAnalyzer = () => {
       // 6. Multi-Modal Detection
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
+      detector.setThreshold(1 - settings.sensitivity);
 
       // Prepare image data
       const imageData = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
@@ -149,11 +159,30 @@ const ImageAnalyzer = () => {
         });
       }
 
+      // 7. Run ELA forensic analysis
+      let elaData: ELAResult | null = null;
+      try {
+        elaData = await performELA(canvas);
+        setElaResult(elaData);
+        // Merge ELA anomalies into detection result
+        if (elaData.anomalies.length > 0) {
+          detectionResult.anomalies = Array.from(new Set([
+            ...detectionResult.anomalies,
+            ...elaData.anomalies,
+          ]));
+        }
+      } catch (elaError) {
+        console.warn('ELA analysis failed:', elaError);
+      }
+
       setResult(detectionResult);
       const elapsed = timer.getElapsedMs();
       setProcessingTime(elapsed);
 
-      // 7. Log detection
+      // 8. Draw overlays on visible overlay canvas
+      drawOverlays(faces, meshResult, detectionResult, elaData);
+
+      // 9. Log detection
       await logDetection({
         detection_type: 'image',
         media_type: selectedFile.type,
@@ -169,10 +198,15 @@ const ImageAnalyzer = () => {
           modalities_used: [
             'visual',
             'metadata',
+            'ela',
             ...(meshResult.detected ? ['ppg'] : []),
           ],
           scores: detectionResult.scores,
           anomalies_detected: detectionResult.anomalies,
+          ela: elaData ? {
+            score: elaData.score,
+            suspiciousRegions: elaData.details.suspiciousRegionCount,
+          } : undefined,
         },
       });
 
@@ -189,6 +223,54 @@ const ImageAnalyzer = () => {
     }
   };
 
+  const drawOverlays = useCallback((
+    faces: Awaited<ReturnType<ReturnType<typeof getFaceDetector>['detect']>>,
+    meshResult: Awaited<ReturnType<ReturnType<typeof getFaceMesh>['detect']>>,
+    detectionResult: DetectionResult,
+    elaData: ELAResult | null,
+  ) => {
+    const overlay = overlayCanvasRef.current;
+    if (!overlay || !imageDimensions) return;
+
+    overlay.width = imageDimensions.width;
+    overlay.height = imageDimensions.height;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    const color = detectionResult.isDeepfake ? '#ff0000' : '#00ff00';
+
+    // Bounding box
+    if (settings.showBoundingBoxes && faces[0]?.boundingBox) {
+      const bbox = faces[0].boundingBox;
+      drawBoundingBox(ctx, {
+        x: bbox.xMin * overlay.width,
+        y: bbox.yMin * overlay.height,
+        width: bbox.width * overlay.width,
+        height: bbox.height * overlay.height,
+      }, color, 3);
+    }
+
+    // Face mesh landmarks
+    if (settings.showBoundingBoxes && meshResult.detected && meshResult.landmarks) {
+      const scaledLandmarks = meshResult.landmarks.map((lm: { x: number; y: number }) => ({
+        x: lm.x * overlay.width,
+        y: lm.y * overlay.height,
+      }));
+      drawLandmarks(ctx, scaledLandmarks, color, 1);
+    }
+
+    // Heatmap
+    if (settings.showHeatmap && elaData?.details.suspiciousRegions) {
+      createHeatmap(overlay, elaData.details.suspiciousRegions);
+    }
+
+    // Confidence badge
+    if (settings.showConfidenceBadge) {
+      drawConfidenceOverlay(ctx, detectionResult.confidence, detectionResult.isDeepfake, 10, 40);
+    }
+  }, [imageDimensions, settings]);
+
   const exportReport = () => {
     if (!result || !selectedFile) return;
 
@@ -201,6 +283,14 @@ const ImageAnalyzer = () => {
       processingTime: processingTime + 'ms',
       scores: result.scores,
       anomalies: result.anomalies,
+      multiModalDetails: result.multiModalDetails,
+      ela: elaResult ? {
+        score: elaResult.score,
+        meanError: elaResult.details.meanError,
+        suspiciousRegions: elaResult.details.suspiciousRegionCount,
+        noiseScore: elaResult.details.noiseScore,
+        frequencyScore: elaResult.details.frequencyScore,
+      } : undefined,
     };
 
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
@@ -218,7 +308,9 @@ const ImageAnalyzer = () => {
     setSelectedFile(null);
     setImageUrl(null);
     setResult(null);
+    setElaResult(null);
     setProcessingTime(0);
+    setImageDimensions(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -300,7 +392,20 @@ const ImageAnalyzer = () => {
           {/* Image Preview */}
           <Card>
             <CardHeader>
-              <CardTitle>Image Preview</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Image Preview</CardTitle>
+                {result && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowOverlays(!showOverlays)}
+                    className="gap-2"
+                  >
+                    {showOverlays ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showOverlays ? 'Hide' : 'Show'} Overlays
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
@@ -313,6 +418,12 @@ const ImageAnalyzer = () => {
                   ref={canvasRef}
                   className="hidden"
                 />
+                {showOverlays && (
+                  <canvas
+                    ref={overlayCanvasRef}
+                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -410,6 +521,118 @@ const ImageAnalyzer = () => {
                       </ul>
                     </div>
                   )}
+
+                  {/* Multi-Modal Forensic Details */}
+                  <Accordion type="single" collapsible className="w-full">
+                    {result.multiModalDetails?.metadata && (
+                      <AccordionItem value="metadata">
+                        <AccordionTrigger className="text-sm font-medium">Metadata Forensics</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-2 text-sm text-muted-foreground">
+                            {result.multiModalDetails.metadata.details.fileInfo && (
+                              <div>
+                                <p><strong>File:</strong> {result.multiModalDetails.metadata.details.fileInfo.name}</p>
+                                <p><strong>Type:</strong> {result.multiModalDetails.metadata.details.fileInfo.type}</p>
+                                <p><strong>Size:</strong> {formatFileSize(result.multiModalDetails.metadata.details.fileInfo.size)}</p>
+                              </div>
+                            )}
+                            {result.multiModalDetails.metadata.details.suspiciousPatterns.length > 0 && (
+                              <div>
+                                <p className="font-medium text-foreground">Suspicious Patterns:</p>
+                                <ul className="space-y-1 mt-1">
+                                  {result.multiModalDetails.metadata.details.suspiciousPatterns.map((p, i) => (
+                                    <li key={i} className="text-orange-500">⚠ {p}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {result.multiModalDetails.metadata.details.suspiciousPatterns.length === 0 && (
+                              <p className="text-green-500">✓ No suspicious metadata patterns detected</p>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+
+                    {result.multiModalDetails?.ppg && (
+                      <AccordionItem value="ppg">
+                        <AccordionTrigger className="text-sm font-medium">Physiological (PPG)</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>PPG Score:</strong> {(result.multiModalDetails.ppg.score * 100).toFixed(1)}%</p>
+                            <p><strong>Confidence:</strong> {(result.multiModalDetails.ppg.confidence * 100).toFixed(1)}%</p>
+                            {result.multiModalDetails.ppg.anomalies.length > 0 && (
+                              <ul className="space-y-1 mt-1">
+                                {result.multiModalDetails.ppg.anomalies.map((a, i) => (
+                                  <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+
+                    {result.multiModalDetails?.lipSync && (
+                      <AccordionItem value="lipsync">
+                        <AccordionTrigger className="text-sm font-medium">Lip-Sync Analysis</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>Sync Score:</strong> {(result.multiModalDetails.lipSync.score * 100).toFixed(1)}%</p>
+                            <p><strong>Confidence:</strong> {(result.multiModalDetails.lipSync.confidence * 100).toFixed(1)}%</p>
+                            {result.multiModalDetails.lipSync.anomalies.length > 0 && (
+                              <ul className="space-y-1 mt-1">
+                                {result.multiModalDetails.lipSync.anomalies.map((a, i) => (
+                                  <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+
+                    {result.multiModalDetails?.voice && (
+                      <AccordionItem value="voice">
+                        <AccordionTrigger className="text-sm font-medium">Voice Analysis</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>Voice Score:</strong> {(result.multiModalDetails.voice.score * 100).toFixed(1)}%</p>
+                            <p><strong>Confidence:</strong> {(result.multiModalDetails.voice.confidence * 100).toFixed(1)}%</p>
+                            {result.multiModalDetails.voice.anomalies.length > 0 && (
+                              <ul className="space-y-1 mt-1">
+                                {result.multiModalDetails.voice.anomalies.map((a, i) => (
+                                  <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+
+                    {elaResult && (
+                      <AccordionItem value="ela">
+                        <AccordionTrigger className="text-sm font-medium">Error Level Analysis (ELA)</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>ELA Score:</strong> {(elaResult.score * 100).toFixed(1)}%</p>
+                            <p><strong>Mean Error:</strong> {elaResult.details.meanError.toFixed(2)}</p>
+                            <p><strong>Noise Consistency:</strong> {(elaResult.details.noiseScore * 100).toFixed(1)}%</p>
+                            <p><strong>Frequency Score:</strong> {(elaResult.details.frequencyScore * 100).toFixed(1)}%</p>
+                            <p><strong>Suspicious Regions:</strong> {elaResult.details.suspiciousRegionCount}</p>
+                            {elaResult.anomalies.length > 0 && (
+                              <ul className="space-y-1 mt-1">
+                                {elaResult.anomalies.map((a, i) => (
+                                  <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+                  </Accordion>
                 </div>
               ) : isAnalyzing ? (
                 <div className="text-center py-8">
