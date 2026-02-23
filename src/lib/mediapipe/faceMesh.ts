@@ -5,8 +5,9 @@
  * Core component for deepfake detection
  */
 
-// @ts-ignore - MediaPipe types
-declare const FaceMesh: any;
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - MediaPipe face_mesh package types
+import { FaceMesh } from '@mediapipe/face_mesh';
 
 export interface Landmark {
   x: number;
@@ -74,22 +75,25 @@ export class FaceMeshDetector {
       await this.waitForInitialization();
     }
 
-    try {
-      const results = await this.faceMesh!.send({ image: input });
+    return new Promise((resolve) => {
+      this.faceMesh!.onResults((results: any) => {
+        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+          resolve({ detected: false });
+          return;
+        }
 
-      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-        return { detected: false };
-      }
+        resolve({
+          detected: true,
+          landmarks: results.multiFaceLandmarks[0] as Landmark[],
+          multiFaceLandmarks: results.multiFaceLandmarks as Landmark[][],
+        });
+      });
 
-      return {
-        detected: true,
-        landmarks: results.multiFaceLandmarks[0] as Landmark[],
-        multiFaceLandmarks: results.multiFaceLandmarks as Landmark[][],
-      };
-    } catch (error) {
-      console.error('Face mesh detection error:', error);
-      return { detected: false };
-    }
+      this.faceMesh!.send({ image: input }).catch((error: any) => {
+        console.error('Face mesh detection error:', error);
+        resolve({ detected: false });
+      });
+    });
   }
 
   /**
