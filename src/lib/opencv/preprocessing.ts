@@ -16,20 +16,25 @@
 declare const cv: any;
 
 /**
- * Wait for OpenCV to be ready
+ * Wait for OpenCV to be ready (with timeout)
  */
-export const waitForOpenCV = (): Promise<void> => {
-  return new Promise((resolve) => {
+export const waitForOpenCV = (timeoutMs = 15000): Promise<void> => {
+  return new Promise((resolve, reject) => {
     if (typeof cv !== 'undefined' && cv.Mat) {
       resolve();
-    } else {
-      const checkInterval = setInterval(() => {
-        if (typeof cv !== 'undefined' && cv.Mat) {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 100);
+      return;
     }
+
+    const startTime = Date.now();
+    const checkInterval = setInterval(() => {
+      if (typeof cv !== 'undefined' && cv.Mat) {
+        clearInterval(checkInterval);
+        resolve();
+      } else if (Date.now() - startTime > timeoutMs) {
+        clearInterval(checkInterval);
+        reject(new Error('OpenCV.js failed to load within timeout. Check your network connection.'));
+      }
+    }, 100);
   });
 };
 
