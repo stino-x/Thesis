@@ -85,19 +85,19 @@ export const AboutModal = ({ open, onOpenChange }: AboutModalProps) => {
             <h3 className="text-lg font-semibold">Learn More</h3>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" className="gap-2" asChild>
-                <a href="#" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/stino-x/Thesis" target="_blank" rel="noopener noreferrer">
                   <BookOpen className="h-4 w-4" />
                   Documentation
                 </a>
               </Button>
               <Button variant="outline" className="gap-2" asChild>
-                <a href="#" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/stino-x/Thesis" target="_blank" rel="noopener noreferrer">
                   <Github className="h-4 w-4" />
                   GitHub
                 </a>
               </Button>
               <Button variant="outline" className="gap-2" asChild>
-                <a href="mailto:contact@example.com">
+                <a href="https://github.com/stino-x/Thesis/issues">
                   <Mail className="h-4 w-4" />
                   Contact
                 </a>
