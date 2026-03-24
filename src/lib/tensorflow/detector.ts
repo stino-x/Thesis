@@ -78,10 +78,14 @@ export class DeepfakeDetector {
       
       // 1. Try MesoNet (specialized for deepfakes)
       try {
+        console.log('🔄 Attempting to load MesoNet model...');
         this.model = await tf.loadLayersModel('/models/mesonet/model.json');
         this.modelType = 'mesonet';
         console.log('✅ MesoNet model loaded successfully');
-      } catch {
+        console.log('📊 Model input shape:', this.model.inputs[0].shape);
+        console.log('📊 Model output shape:', this.model.outputs[0].shape);
+      } catch (error) {
+        console.error('❌ MesoNet loading failed:', error);
         console.log('⚠️ MesoNet not found, trying MobileNet...');
         
         // 2. Try MobileNetV2 from TensorFlow Hub (general-purpose CNN)
@@ -93,7 +97,8 @@ export class DeepfakeDetector {
           this.modelType = 'mobilenet';
           console.log('✅ MobileNetV2 loaded from TensorFlow Hub');
           console.log('📊 Using MobileNet feature extraction + ensemble detection');
-        } catch {
+        } catch (mobileNetError) {
+          console.error('❌ MobileNet loading failed:', mobileNetError);
           console.warn('⚠️ Could not load MobileNet from TFHub');
           console.warn('Using enhanced feature-based detection only');
           this.modelLoadError = true;

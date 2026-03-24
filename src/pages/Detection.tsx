@@ -15,6 +15,7 @@ import { Header } from '@/components/Header';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { SettingsModal } from '@/components/SettingsModal';
 import { AboutModal } from '@/components/AboutModal';
+import DiagnosticPanel from '@/components/DiagnosticPanel';
 
 import WebcamDetector from '@/components/detection/WebcamDetector';
 import ImageAnalyzer from '@/components/detection/ImageAnalyzer';
@@ -95,6 +96,9 @@ const Detection = () => {
               <WebcamDetector />
             </CardContent>
           </Card>
+          
+          {/* Diagnostic Panel */}
+          <DiagnosticPanel />
         </TabsContent>
 
         {/* Image Analysis */}
