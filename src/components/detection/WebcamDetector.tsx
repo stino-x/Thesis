@@ -144,9 +144,12 @@ const WebcamDetector = () => {
 
     try {
       // 1. Face Detection
+      console.log('🔍 Starting face detection...');
       const faceDetector = getFaceDetector();
       await faceDetector.waitForInitialization();
       const faces = await faceDetector.detect(videoRef.current!);
+
+      console.log('👤 Faces detected:', faces.length, faces[0]?.detected ? 'Face found' : 'No face');
 
       if (!faces[0]?.detected) {
         setCurrentResult(null);
@@ -154,16 +157,21 @@ const WebcamDetector = () => {
       }
 
       const face = faces[0];
+      console.log('📊 Face confidence:', face.score);
 
       // 2. Face Mesh
+      console.log('🕸️ Getting face mesh...');
       const faceMesh = getFaceMesh();
       await faceMesh.waitForInitialization();
       const meshResult = await faceMesh.detect(videoRef.current!);
 
       if (!meshResult.detected || !meshResult.landmarks) {
+        console.log('❌ Face mesh failed');
         setCurrentResult(null);
         return;
       }
+
+      console.log('✅ Face mesh detected, landmarks:', meshResult.landmarks.length);
 
       // 3. Extract Features
       const eyeLandmarks = faceMesh.getEyeLandmarks(meshResult.landmarks);
@@ -174,6 +182,7 @@ const WebcamDetector = () => {
       const features = featureAggregator.current.getFeatures(meshResult.landmarks);
 
       // 4. Multi-Modal Classification
+      console.log('🤖 Running deepfake detection...');
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity);
@@ -189,6 +198,8 @@ const WebcamDetector = () => {
         canvas,
         timestamp: performance.now(),
       });
+
+      console.log('🎯 Detection result:', result.isDeepfake ? 'DEEPFAKE' : 'REAL', 'confidence:', result.confidence);
 
       setCurrentResult(result);
       setDetectionCount(prev => prev + 1);
@@ -242,7 +253,8 @@ const WebcamDetector = () => {
         });
       }
     } catch (error) {
-      console.error('Detection error:', error);
+      console.error('❌ Detection error:', error);
+      console.error('Error details:', error.message, error.stack);
     }
   };
 

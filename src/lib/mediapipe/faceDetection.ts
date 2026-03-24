@@ -39,7 +39,7 @@ export class FaceDetector {
 
       this.faceDetection.setOptions({
         model: 'short', // 'short' for close-range, 'full' for longer range
-        minDetectionConfidence: 0.5,
+        minDetectionConfidence: 0.3, // Lower threshold for better detection
       });
 
       await this.faceDetection.initialize();
