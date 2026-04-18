@@ -1,161 +1,186 @@
 # Deepfake Detection System
 
-A real-time deepfake detection web application built with React, TypeScript, TensorFlow.js, and MediaPipe.
+A production-grade multi-modal deepfake detection web application. Detects AI-generated images, face-swap deepfakes, and manipulated media using an ensemble of 5+ ML models running directly in the browser, backed by a CLIP-based server for generalization to unseen generators.
 
-## Features
+## What It Does
 
-- **Video Input**: Support for both webcam streaming and video file uploads
-- **Face Detection**: Real-time face detection using MediaPipe Face Detection
-- **ML Inference Pipeline**: TensorFlow.js-based inference pipeline for deepfake detection
-- **Results Visualization**: Real-time confidence scores and detection history
-- **Modern UI**: Responsive design with Tailwind CSS
+- Upload an image, video, or use your webcam
+- The system runs every available detection method simultaneously
+- Results are combined into a single verdict with per-model score breakdown
+- Works offline (browser models) — CLIP backend adds coverage for newest generators
 
-## Tech Stack
+---
 
-- **Frontend**: React 19 with TypeScript
-- **Build Tool**: Vite
-- **ML Framework**: TensorFlow.js
-- **Face Detection**: MediaPipe Tasks Vision
-- **Styling**: Tailwind CSS
+## Detection Stack
 
-## Getting Started
+### In-Browser Models (always run, no server needed)
+
+| Model | Accuracy | Detects | Size |
+|---|---|---|---|
+| SwinV2 AI Detector | 98.1% | SD, DALL-E, Midjourney, Firefly | 307 MB |
+| ViT Deepfake Exp | 98.8% | Face deepfakes (best single model) | 103 MB |
+| ViT Deepfake v2 | 92.1% | Face deepfakes (different training set) | 98 MB |
+| DeepfakeDetector-ONNX | ~90% | Face swaps | 91 MB |
+| MesoNet4 | ~90% | Classic face swaps | 0.1 MB |
+
+All ONNX models run via ONNX Runtime Web (WASM). Models load from `/public/models/onnx/` on first use.
+
+### Backend (CLIP/UnivFD — hosted free on Modal.com)
+
+CLIP ViT-L/14 + UnivFD linear probe. The only open-source approach that generalizes to **unseen generators** — DALL-E 3, Midjourney v7, FLUX, and future models it was never trained on. Runs on Modal.com serverless (free tier, ~10s cold start).
+
+### Multi-Modal Forensic Signals (layered on top)
+
+- **PPG Analysis** — detects absence of heartbeat signal in skin pixels (Intel FakeCatcher approach)
+- **ELA Forensics** — Error Level Analysis for compression artifact inconsistencies
+- **Metadata Forensics** — file timestamps, AI-typical resolutions, codec mismatches
+- **Lip-Sync Analysis** — mouth movement vs audio correlation (video only)
+- **Voice Analysis** — spectral artifacts in synthetic speech (video only)
+- **MediaPipe Landmarks** — blink rate, eye aspect ratio, face symmetry, landmark jitter
+
+### Ensemble Strategy
+
+Models are grouped by specialty, each group votes independently:
+
+- **Group A** (face manipulation, 55% weight): ViT-Exp, ViT-v2, DeepfakeDetector, MesoNet
+- **Group B** (AI-generated content, 35% weight): SwinV2 + CLIP/UnivFD backend
+- **Group C** (forensic signals, 10% weight): PPG, ELA, metadata, lip-sync, voice
+
+A single model at >92% confidence triggers a boost override. Everything degrades gracefully when models are unavailable.
+
+---
+
+## Quick Start
 
 ### Prerequisites
+- Node.js 18+
+- Python 3.12 (for scripts/backend, already set up in `scripts/.venv312`)
 
-- Node.js (v16 or higher)
-- npm or yarn
-
-### Installation
+### Frontend
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 ```
+
+Open `http://localhost:5173`
+
+### Download ONNX Models
+
+Models are not in git (too large). Download them once:
+
+```powershell
+.\scripts\download_onnx_models.ps1
+```
+
+This downloads all 4 ONNX models (~600 MB total) to `public/models/onnx/`.
+
+### Backend (optional — already deployed to Modal)
+
+The CLIP backend is live at:
+```
+https://austindev214--deepfake-detect-api-fastapi-app.modal.run
+```
+
+It's already set in `.env`. To run locally instead:
+
+```bash
+scripts/.venv312/Scripts/uvicorn backend.main:app --reload --port 8787
+```
+
+To redeploy to Modal:
+
+```bash
+pip install modal
+modal deploy backend/modal_app.py
+```
+
+---
 
 ## Project Structure
 
 ```
-src/
-├── components/
-│   ├── VideoInput/          # Video input component (webcam/upload)
-│   ├── FaceDetection/       # MediaPipe face detection
-│   ├── MLInference/         # TensorFlow.js inference pipeline
-│   └── ResultsVisualization/ # Results display with confidence scores
-├── types/                   # TypeScript type definitions
-├── App.tsx                  # Main application component
-└── main.tsx                 # Application entry point
+├── src/
+│   ├── components/
+│   │   ├── detection/
+│   │   │   ├── ImageAnalyzer.tsx      # Image upload + analysis
+│   │   │   ├── VideoAnalyzer.tsx      # Video frame-by-frame analysis
+│   │   │   └── WebcamDetector.tsx     # Real-time webcam detection
+│   │   └── ui/                        # Shadcn UI components
+│   ├── lib/
+│   │   ├── onnx/onnxDetector.ts       # ONNX Runtime Web — 4 models
+│   │   ├── tensorflow/detector.ts     # Ensemble logic + TFJS models
+│   │   ├── api/univfdClient.ts        # CLIP backend client
+│   │   ├── mediapipe/                 # Face detection + mesh + features
+│   │   ├── forensics/                 # ELA + metadata analysis
+│   │   ├── physiological/             # PPG heartbeat analysis
+│   │   └── audio/                     # Lip-sync + voice analysis
+│   └── pages/
+│       ├── Detection.tsx              # Main detection page
+│       ├── AuditLogsPage.tsx          # Detection history
+│       └── Profile.tsx                # User profile
+├── backend/
+│   ├── main.py                        # FastAPI + CLIP/UnivFD (local)
+│   └── modal_app.py                   # Modal.com deployment
+├── public/models/
+│   ├── mesonet/                       # MesoNet4 TF.js weights (included)
+│   └── onnx/                          # ONNX models (download via script)
+└── scripts/
+    ├── download_onnx_models.ps1       # Download all ONNX models
+    ├── export_to_onnx.py              # Export XceptionNet/CNNDetector to ONNX
+    └── .venv312/                      # Python venv (gitignored)
 ```
 
-## Model Integration
+---
 
-The application includes a complete inference pipeline ready for model integration:
+## Environment Variables
 
-### TODO: Integrate Your Trained Model
+Copy `.env.example` to `.env`:
 
-1. **Train a deepfake detection model** using your preferred framework (TensorFlow, PyTorch, etc.)
-2. **Convert to TensorFlow.js format** using the tfjs-converter:
-   ```bash
-   tensorflowjs_converter --input_format=tf_saved_model \
-                         --output_format=tfjs_graph_model \
-                         /path/to/saved_model \
-                         /path/to/web_model
-   ```
-3. **Host model files** (model.json and weight shards) in the `public/models/` directory
-4. **Update the MODEL_URL** in `src/components/MLInference/MLInference.tsx`
-5. **Uncomment model loading code** and adjust preprocessing as needed
-
-### Current Status
-
-The application currently runs with a **mock inference pipeline** that demonstrates the complete workflow. The inference component includes:
-
-- Proper frame preprocessing (cropping, resizing, normalization)
-- Face-based region extraction
-- Batch processing setup
-- Performance monitoring
-- Clear TODO comments for model integration
-
-## Usage
-
-1. **Start Video Input**:
-   - Click "Start Webcam" for live video
-   - Or click "Upload Video" to analyze a video file
-
-2. **Face Detection**:
-   - The system automatically detects faces in real-time
-   - Green bounding boxes show detected faces
-
-3. **View Results**:
-   - Real-time confidence scores (0-100%)
-   - Color-coded threat levels (Green/Yellow/Red)
-   - Detection history with timestamps
-   - Performance statistics
-
-## Development
-
-### Available Scripts
-
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build for production
-- `npm run lint` - Run ESLint
-- `npm run preview` - Preview production build
-
-### Adding Tests
-
-```bash
-# Install testing dependencies
-npm install -D @testing-library/react @testing-library/jest-dom vitest
-
-# Add test scripts to package.json
+```env
+VITE_SUPABASE_URL=           # Supabase project URL
+VITE_SUPABASE_ANON_KEY=      # Supabase anon key
+VITE_BACKEND_URL=https://austindev214--deepfake-detect-api-fastapi-app.modal.run
 ```
 
-## Performance Considerations
+---
 
-- Face detection runs continuously on video frames
-- ML inference runs every 500ms (configurable)
-- TensorFlow.js uses WebGL backend for GPU acceleration
-- Results history is limited to 50 entries to prevent memory issues
+## Authentication
 
-## Browser Support
+Supabase Auth with email/password + OAuth (Google, GitHub). Protected routes redirect to login. Audit logs stored in Supabase PostgreSQL with Row-Level Security.
 
-- Chrome/Edge (recommended)
-- Firefox
-- Safari (with limitations on some MediaPipe features)
+---
 
-## Known Limitations
+## Tech Stack
 
-- Requires camera permissions for webcam access
-- Model performance depends on hardware (GPU recommended)
-- MediaPipe models are loaded from CDN (consider hosting locally for production)
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + TypeScript + Vite |
+| UI | Shadcn/ui + Tailwind CSS + Framer Motion |
+| In-browser ML | TensorFlow.js + ONNX Runtime Web |
+| Face tracking | MediaPipe Tasks Vision |
+| Backend ML | FastAPI + PyTorch + CLIP (Modal.com) |
+| Auth + DB | Supabase |
+| State | React Query + Context API |
 
-## Future Enhancements
+---
 
-- [ ] Model training pipeline integration
-- [ ] Batch video processing
-- [ ] Advanced visualization options
-- [ ] Export results to CSV/JSON
-- [ ] Multi-face tracking
-- [ ] Video timeline scrubbing
-- [ ] Custom confidence thresholds
+## Browser Requirements
 
-## Contributing
+- Chrome/Edge recommended (best WASM performance)
+- Firefox supported
+- Requires `Cross-Origin-Opener-Policy: same-origin` headers (set in `vite.config.ts`) for ONNX WASM threading
 
-This is a research project. Feel free to extend and modify as needed.
+---
 
-## License
+## Honest Limitations
 
-See LICENSE file for details.
+No open-source detector catches everything. Research shows even SOTA models drop ~45% AUC on real-world 2024 deepfakes vs lab benchmarks. This system covers:
 
-## Acknowledgments
+- Classic face swaps — very well (MesoNet, ViT models)
+- GAN-generated faces — well (SwinV2)
+- Known diffusion models (SD, DALL-E 2) — well (SwinV2 + CLIP)
+- Newest generators (DALL-E 3, MJ v7, FLUX) — best available open-source (CLIP/UnivFD)
+- Adversarially crafted deepfakes — limited (no detector handles these well)
 
-- TensorFlow.js team for the ML framework
-- MediaPipe team for face detection models
-- React and Vite communities 
+The multi-modal stack (PPG, ELA, lip-sync) adds signals that are hard to fake even when visual models fail.
