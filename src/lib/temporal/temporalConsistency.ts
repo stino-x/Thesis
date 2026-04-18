@@ -5,16 +5,16 @@
  * miss artifacts that only appear across time — flickering identity, unstable
  * blending boundaries, and inconsistent lighting between frames.
  *
- * This module maintains a sliding window of the last N frame scores and
- * computes several temporal signals:
+ * Uses an adaptive sliding window:
+ *  - Default: 8 frames (4s at 0.5s intervals) — fast warmup
+ *  - Extended: up to 24 frames when enough data is available — catches
+ *    slow gradual degradation that an 8-frame window misses
  *
+ * Signals computed over the window:
  *  1. Score variance  — real faces are consistent; deepfakes flicker
  *  2. Flip rate       — how often the verdict flips real↔fake
- *  3. Trend detection — a rising score trend suggests progressive degradation
- *  4. Outlier frames  — single frames that spike far above the window mean
- *
- * The output is a 0-1 deepfake probability that can be fed into the ensemble
- * as an additional Group C signal.
+ *  3. Trend detection — rising score = progressive degradation
+ *  4. Outlier frames  — single frames spiking far above window mean
  */
 
 export interface TemporalFrame {
@@ -38,34 +38,38 @@ export interface TemporalAnalysisResult {
 }
 
 export class TemporalConsistencyAnalyzer {
-  private readonly windowSize: number;
-  private window: TemporalFrame[] = [];
-
-  constructor(windowSize = 8) {
-    this.windowSize = windowSize;
-  }
+  // Keep a long history; analysis uses an adaptive window over the tail
+  private readonly maxHistory = 64;
+  private readonly minWindow  = 8;   // minimum frames before producing a result
+  private readonly maxWindow  = 24;  // maximum window for slow-degradation detection
+  private history: TemporalFrame[] = [];
 
   /** Add a frame result and get the current temporal analysis */
   addFrame(frame: TemporalFrame): TemporalAnalysisResult {
-    this.window.push(frame);
-    if (this.window.length > this.windowSize) this.window.shift();
+    this.history.push(frame);
+    if (this.history.length > this.maxHistory) this.history.shift();
     return this.analyze();
   }
 
-  /** Analyze the current window */
+  /** Analyze using an adaptive window over the most recent frames */
   analyze(): TemporalAnalysisResult {
-    const n = this.window.length;
+    const total = this.history.length;
 
-    if (n < 3) {
+    if (total < 3) {
       return {
         score: 0, confidence: 0,
         anomalies: ['insufficient_frames'],
-        details: { windowSize: n, scoreVariance: 0, flipRate: 0, outlierCount: 0, trendSlope: 0, meanScore: 0 },
+        details: { windowSize: total, scoreVariance: 0, flipRate: 0, outlierCount: 0, trendSlope: 0, meanScore: 0 },
       };
     }
 
-    const scores   = this.window.map(f => f.score);
-    const verdicts = this.window.map(f => f.isDeepfake);
+    // Adaptive window: use more frames as history grows, up to maxWindow
+    const windowSize = Math.min(Math.max(total, this.minWindow), this.maxWindow);
+    const window     = this.history.slice(-windowSize);
+    const n          = window.length;
+
+    const scores   = window.map(f => f.score);
+    const verdicts = window.map(f => f.isDeepfake);
 
     // ── 1. Score variance ──────────────────────────────────────────────────
     const mean     = scores.reduce((s, v) => s + v, 0) / n;
@@ -79,16 +83,15 @@ export class TemporalConsistencyAnalyzer {
     const flipRate = flips / (n - 1);
 
     // ── 3. Outlier frames ──────────────────────────────────────────────────
-    const std = Math.sqrt(variance);
+    const std          = Math.sqrt(variance);
     const outlierCount = scores.filter(s => Math.abs(s - mean) > 2 * std).length;
 
     // ── 4. Linear trend (least-squares slope) ─────────────────────────────
-    const xs = scores.map((_, i) => i);
     const xMean = (n - 1) / 2;
     let num = 0, den = 0;
     for (let i = 0; i < n; i++) {
-      num += (xs[i] - xMean) * (scores[i] - mean);
-      den += (xs[i] - xMean) ** 2;
+      num += (i - xMean) * (scores[i] - mean);
+      den += (i - xMean) ** 2;
     }
     const trendSlope = den === 0 ? 0 : num / den;
 
@@ -96,7 +99,6 @@ export class TemporalConsistencyAnalyzer {
     const anomalies: string[] = [];
     let deepfakeScore = 0;
 
-    // High variance = flickering = deepfake artifact
     if (variance > 0.08) {
       anomalies.push('high_temporal_variance');
       deepfakeScore += 0.35;
@@ -105,7 +107,6 @@ export class TemporalConsistencyAnalyzer {
       deepfakeScore += 0.15;
     }
 
-    // Frequent verdict flips = unstable detection = likely deepfake
     if (flipRate > 0.5) {
       anomalies.push('frequent_verdict_flips');
       deepfakeScore += 0.3;
@@ -114,24 +115,23 @@ export class TemporalConsistencyAnalyzer {
       deepfakeScore += 0.15;
     }
 
-    // Outlier frames spike = blending boundary artifact
     if (outlierCount >= 2) {
       anomalies.push('temporal_outlier_frames');
       deepfakeScore += 0.2;
     }
 
-    // Rising trend = degrading over time (common in long deepfake videos)
+    // Rising trend — more meaningful with a longer window
     if (trendSlope > 0.03) {
       anomalies.push('rising_deepfake_score_trend');
       deepfakeScore += 0.15;
     }
 
-    // High mean score across the window
     if (mean > 0.65) {
       deepfakeScore += 0.2;
     }
 
-    const confidence = Math.min(n / this.windowSize, 1.0) * 0.9; // grows as window fills
+    // Confidence grows as window fills toward maxWindow
+    const confidence = Math.min(n / this.maxWindow, 1.0) * 0.9;
 
     return {
       score: Math.min(deepfakeScore, 1.0),
@@ -142,13 +142,13 @@ export class TemporalConsistencyAnalyzer {
   }
 
   reset(): void {
-    this.window = [];
+    this.history = [];
   }
 }
 
 // Singleton
 let instance: TemporalConsistencyAnalyzer | null = null;
 export const getTemporalAnalyzer = (): TemporalConsistencyAnalyzer => {
-  if (!instance) instance = new TemporalConsistencyAnalyzer(8);
+  if (!instance) instance = new TemporalConsistencyAnalyzer();
   return instance;
 };
