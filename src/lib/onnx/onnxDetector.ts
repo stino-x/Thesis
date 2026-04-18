@@ -9,6 +9,7 @@
 
 import * as ort from 'onnxruntime-web';
 import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
+import { updateModelStatus } from '@/components/ModelLoadingStatus';
 
 const HF_BASE = 'https://huggingface.co/stino214/deepfake-onnx-models/resolve/main';
 
@@ -59,9 +60,15 @@ async function idbGet(key: string): Promise<ArrayBuffer | null> {
       const tx  = db.transaction(IDB_STORE, 'readonly');
       const req = tx.objectStore(IDB_STORE).get(key);
       req.onsuccess = () => resolve((req.result as ArrayBuffer) ?? null);
-      req.onerror   = () => resolve(null);
+      req.onerror   = () => {
+        console.warn(`⚠️  IndexedDB read failed for ${key}:`, req.error);
+        resolve(null);
+      };
     });
-  } catch { return null; }
+  } catch (error) {
+    console.warn(`⚠️  IndexedDB access failed for ${key}:`, error);
+    return null;
+  }
 }
 
 async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
@@ -70,10 +77,19 @@ async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
       tx.objectStore(IDB_STORE).put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror    = () => reject(tx.error);
+      tx.oncomplete = () => {
+        console.log(`✅ Cached ONNX model: ${key}`);
+        resolve();
+      };
+      tx.onerror = () => {
+        console.warn(`⚠️  IndexedDB write failed for ${key}:`, tx.error);
+        reject(tx.error);
+      };
     });
-  } catch { /* non-fatal */ }
+  } catch (error) {
+    console.warn(`⚠️  Failed to cache ONNX model ${key}:`, error);
+    // Non-fatal - model will work but won't be cached
+  }
 }
 
 // ─── Session management ───────────────────────────────────────────────────────
@@ -94,21 +110,25 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
 
     if (!buffer) {
       console.log(`⬇️  Downloading ONNX model: ${key} (first time only)`);
+      updateModelStatus(key, 'downloading');
       const res = await fetch(MODEL_URLS[key]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       buffer = await res.arrayBuffer();
-      idbSet(key, buffer); // cache async, don't await
+      idbSet(key, buffer);
     } else {
       console.log(`📦 ONNX model from cache: ${key}`);
+      updateModelStatus(key, 'cached');
     }
 
     sessions[key] = await ort.InferenceSession.create(buffer, {
       executionProviders: ['wasm'],
     });
     console.log(`✅ ONNX ready: ${key}`);
+    updateModelStatus(key, 'ready');
     return sessions[key]!;
   } catch (e) {
     console.warn(`⚠️  ONNX failed to load ${key}:`, e);
+    updateModelStatus(key, 'error');
     loadErrors[key] = true;
     return null;
   }
