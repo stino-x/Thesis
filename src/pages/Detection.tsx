@@ -5,7 +5,7 @@
  * Integrates webcam, image, and video analyzers
  */
 
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,11 +16,19 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { SettingsModal } from '@/components/SettingsModal';
 import { AboutModal } from '@/components/AboutModal';
 import DiagnosticPanel from '@/components/DiagnosticPanel';
-
-import WebcamDetector from '@/components/detection/WebcamDetector';
-import ImageAnalyzer from '@/components/detection/ImageAnalyzer';
-import VideoAnalyzer from '@/components/detection/VideoAnalyzer';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+// Lazy-load heavy detection components — TF.js + ONNX Runtime only load
+// when the user actually navigates to /detection, not on the home page.
+const WebcamDetector = lazy(() => import('@/components/detection/WebcamDetector'));
+const ImageAnalyzer  = lazy(() => import('@/components/detection/ImageAnalyzer'));
+const VideoAnalyzer  = lazy(() => import('@/components/detection/VideoAnalyzer'));
+
+const DetectorFallback = () => (
+  <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+    Loading detection engine...
+  </div>
+);
 
 const Detection = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -59,9 +67,11 @@ const Detection = () => {
           <Info className="h-4 w-4" />
           <AlertTitle>How it works</AlertTitle>
           <AlertDescription>
-            Our detection system uses advanced AI models (MediaPipe, TensorFlow, OpenCV) to analyze
-            facial features, texture patterns, and temporal consistency. Results are logged for
-            transparency and can be exported for verification purposes.
+            Our detection system runs an ensemble of 5+ ML models simultaneously — ViT-based ONNX models
+            (98.8% accuracy), SwinV2 AI-generation detector, MesoNet4, and a CLIP/UnivFD backend that
+            generalizes to unseen generators. Layered on top: temporal consistency analysis, phoneme-based
+            lip-sync, PPG blood-flow, voice artifact detection, ELA forensics, and metadata analysis.
+            Results are logged for transparency and can be exported for verification.
           </AlertDescription>
         </Alert>
       </div>
@@ -93,22 +103,26 @@ const Detection = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <WebcamDetector />
+              <Suspense fallback={<DetectorFallback />}>
+                <WebcamDetector />
+              </Suspense>
             </CardContent>
           </Card>
-          
-          {/* Diagnostic Panel */}
           <DiagnosticPanel />
         </TabsContent>
 
         {/* Image Analysis */}
         <TabsContent value="image" className="space-y-6">
-          <ImageAnalyzer />
+          <Suspense fallback={<DetectorFallback />}>
+            <ImageAnalyzer />
+          </Suspense>
         </TabsContent>
 
         {/* Video Analysis */}
         <TabsContent value="video" className="space-y-6">
-          <VideoAnalyzer />
+          <Suspense fallback={<DetectorFallback />}>
+            <VideoAnalyzer />
+          </Suspense>
         </TabsContent>
       </Tabs>
 
@@ -181,46 +195,54 @@ const Detection = () => {
               <h3 className="font-semibold">Detection Models</h3>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <div>
-                  <span className="font-medium text-foreground">MediaPipe Face Detection:</span> Locates
-                  faces in the frame with bounding boxes and confidence scores
+                  <span className="font-medium text-foreground">ViT-Deepfake-Exp / ViT-v2 (ONNX):</span> Primary
+                  detection engine — Vision Transformers trained on face-swap and reenactment datasets.
+                  98.8% and 92.1% accuracy respectively. Run via ONNX Runtime Web (WASM).
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">MediaPipe Face Mesh:</span> Extracts 468
-                  facial landmarks for detailed feature analysis
+                  <span className="font-medium text-foreground">SwinV2-AI-Detector (ONNX):</span> Detects
+                  AI-generated content from Stable Diffusion, DALL-E, Midjourney, and Firefly. 98.1% accuracy.
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">TensorFlow.js:</span> Classifies images
-                  and analyzes extracted features for deepfake patterns
+                  <span className="font-medium text-foreground">CLIP / UnivFD (backend):</span> CLIP ViT-L/14
+                  + linear probe — the only open-source approach that generalizes to unseen generators.
+                  Runs on Modal.com serverless.
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">OpenCV.js:</span> Preprocesses images
-                  with noise reduction and histogram equalization
+                  <span className="font-medium text-foreground">MesoNet4 (TensorFlow.js):</span> Lightweight
+                  classic face-swap detector. Loads locally from /models/mesonet/.
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">MediaPipe:</span> Face detection and 468-point
+                  face mesh for landmark extraction and face cropping before ViT inference.
                 </div>
               </div>
             </div>
 
             <div className="space-y-3">
-              <h3 className="font-semibold">Analyzed Features</h3>
+              <h3 className="font-semibold">Forensic Signals</h3>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <div>
-                  <span className="font-medium text-foreground">Blink Patterns:</span> Unnatural or
-                  absent blinking can indicate synthetic faces
+                  <span className="font-medium text-foreground">Temporal Consistency:</span> 8-frame sliding
+                  window tracking score variance, verdict flip rate, and outlier frames — catches flickering
+                  artifacts that single-frame models miss.
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Landmark Stability:</span> Excessive
-                  jitter in facial landmarks suggests manipulation
+                  <span className="font-medium text-foreground">PPG Blood-Flow:</span> Detects absence of
+                  heartbeat signal in facial skin pixels (Intel FakeCatcher approach). Video and webcam only.
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Face Symmetry:</span> Abnormal asymmetry
-                  can reveal deepfake artifacts
+                  <span className="font-medium text-foreground">Lip-Sync (Phoneme):</span> Correlates lip
+                  movement onsets with phoneme boundaries via spectral flux and zero-crossing rate — catches
+                  dubbed content that RMS-only approaches miss.
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Temporal Consistency:</span> Inconsistent
-                  classification across video frames indicates manipulation
+                  <span className="font-medium text-foreground">ELA Forensics:</span> Error Level Analysis
+                  detects compression inconsistencies from image manipulation.
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Texture Analysis:</span> AI-generated
-                  faces often have distinctive texture patterns
+                  <span className="font-medium text-foreground">Metadata Forensics:</span> Checks file
+                  timestamps, AI-common resolutions (512×512, 1024×1024), and codec mismatches.
                 </div>
               </div>
             </div>
