@@ -186,9 +186,11 @@ const VideoAnalyzer = () => {
           imageData,
           faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
           canvas,
+          faceBbox: meshResult.detected ? meshResult.boundingBox : undefined,
           audioBuffer: audioBuffer ?? undefined,
           file: selectedFile,
           timestamp: frame.timestamp,
+          isVideoFrame: true,
           univfd: i === 0 ? univfd : undefined,
         });
 
