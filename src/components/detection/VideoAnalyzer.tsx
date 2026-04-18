@@ -22,6 +22,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 
 import { loadVideo, extractFrames, validateVideoFile, formatFileSize, formatDuration } from '@/utils/videoUtils';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
+import { detectWithUnivFD } from '@/lib/api/univfdClient';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
@@ -139,10 +140,16 @@ const VideoAnalyzer = () => {
         console.warn('⚠️ Could not extract audio from video (may have no audio track):', audioError);
       }
 
-      // Extract frames based on processingSpeed setting
+      // Extract frames + run UnivFD on first frame in parallel
       const intervalMap: Record<string, number> = { fast: 1.0, balanced: 0.5, accurate: 0.25 };
       const frameInterval = intervalMap[settings.processingSpeed] || 0.5;
-      const frames = await extractFrames(video, canvas, frameInterval);
+
+      const [frames, univfdResult] = await Promise.all([
+        extractFrames(video, canvas, frameInterval),
+        // UnivFD runs once on the whole file — no need to repeat per frame
+        detectWithUnivFD(canvas, selectedFile.name).catch(() => null),
+      ]);
+      const univfd = univfdResult ?? undefined;
 
       if (frames.length === 0) {
         toast.error('No frames could be extracted from video');
@@ -174,7 +181,7 @@ const VideoAnalyzer = () => {
         // Face mesh detection for multi-modal
         const meshResult = await faceMesh.detect(canvas);
 
-        // Multi-modal detection
+        // Multi-modal detection — pass univfd only on first frame
         const result = await detector.detectMultiModal({
           imageData,
           faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
@@ -182,6 +189,7 @@ const VideoAnalyzer = () => {
           audioBuffer: audioBuffer ?? undefined,
           file: selectedFile,
           timestamp: frame.timestamp,
+          univfd: i === 0 ? univfd : undefined,
         });
 
         results.push({
@@ -223,6 +231,7 @@ const VideoAnalyzer = () => {
         confidence: avgConfidence,
         scores: aggregatedScores,
         anomalies: allAnomalies,
+        modelsUsed: Array.from(new Set(results.flatMap(r => r.result.modelsUsed))),
         multiModalDetails: lastFrameDetails,
       };
 

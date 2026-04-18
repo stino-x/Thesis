@@ -24,6 +24,7 @@ import { waitForOpenCV, canvasToMat, preprocessForML, deleteMat } from '@/lib/op
 import { getFaceDetector, getFaceMesh } from '@/lib/mediapipe';
 import { getDeepfakeDetector, canvasToTensor } from '@/lib/tensorflow';
 import { performELA, type ELAResult } from '@/lib/forensics/elaAnalyzer';
+import { detectFileWithUnivFD, type UnivFDResult } from '@/lib/api/univfdClient';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
@@ -41,6 +42,7 @@ const ImageAnalyzer = () => {
   const [processingTime, setProcessingTime] = useState<number>(0);
   const [showOverlays, setShowOverlays] = useState(true);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [univfdResult, setUnivfdResult] = useState<UnivFDResult | null>(null);
 
   const { logDetection, getTimingHelper } = useAuditLog();
   const { settings } = useSettings();
@@ -59,6 +61,8 @@ const ImageAnalyzer = () => {
     setSelectedFile(file);
     setImageUrl(URL.createObjectURL(file));
     setResult(null);
+    setElaResult(null);
+    setUnivfdResult(null);
     toast.success('Image loaded successfully');
   };
 
@@ -105,6 +109,7 @@ const ImageAnalyzer = () => {
           confidence: 0,
           scores: {},
           anomalies: ['no_face_detected'],
+          modelsUsed: [],
         });
         deleteMat(mat);
         deleteMat(processed);
@@ -117,45 +122,48 @@ const ImageAnalyzer = () => {
       await faceMesh.waitForInitialization();
       const meshResult = await faceMesh.detect(canvas);
 
-      // 6. Multi-Modal Detection
+      // 6. Multi-Modal Detection (visual + metadata + PPG + UnivFD all in one pass)
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity);
 
-      // Prepare image data
       const imageData = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Fire UnivFD and multi-modal detection in parallel
+      const [univfd] = await Promise.all([
+        detectFileWithUnivFD(selectedFile).catch(() => null),
+      ]);
+      if (univfd) setUnivfdResult(univfd);
 
       let detectionResult: DetectionResult;
 
       if (meshResult.detected && meshResult.landmarks) {
-        // Full multi-modal analysis with face mesh
         const eyeLandmarks = faceMesh.getEyeLandmarks(meshResult.landmarks);
         const leftEAR = faceMesh.calculateEyeAspectRatio(eyeLandmarks.leftEye);
         const rightEAR = faceMesh.calculateEyeAspectRatio(eyeLandmarks.rightEye);
 
-        const features = {
-          blinkRate: 0, // Can't measure from single image
-          eyeAspectRatio: (leftEAR + rightEAR) / 2,
-          landmarkJitter: 0,
-          faceSymmetry: 0.8,
-          mouthMovement: 0,
-          headPoseStability: 1,
-        };
-
-        // Multi-modal detection with metadata + visual + PPG
         detectionResult = await detector.detectMultiModal({
           imageData,
-          features,
+          features: {
+            blinkRate: 0,
+            eyeAspectRatio: (leftEAR + rightEAR) / 2,
+            landmarkJitter: 0,
+            faceSymmetry: 0.8,
+            mouthMovement: 0,
+            headPoseStability: 1,
+          },
           faceMesh: meshResult.landmarks,
           canvas,
           file: selectedFile,
           timestamp: performance.now(),
+          univfd: univfd ?? undefined,
         });
       } else {
-        // Fallback to visual + metadata only
         detectionResult = await detector.detectMultiModal({
           imageData,
+          canvas,
           file: selectedFile,
+          univfd: univfd ?? undefined,
         });
       }
 
@@ -164,7 +172,6 @@ const ImageAnalyzer = () => {
       try {
         elaData = await performELA(canvas);
         setElaResult(elaData);
-        // Merge ELA anomalies into detection result
         if (elaData.anomalies.length > 0) {
           detectionResult.anomalies = Array.from(new Set([
             ...detectionResult.anomalies,
@@ -309,6 +316,7 @@ const ImageAnalyzer = () => {
     setImageUrl(null);
     setResult(null);
     setElaResult(null);
+    setUnivfdResult(null);
     setProcessingTime(0);
     setImageDimensions(null);
     if (fileInputRef.current) {
@@ -624,6 +632,30 @@ const ImageAnalyzer = () => {
                             {elaResult.anomalies.length > 0 && (
                               <ul className="space-y-1 mt-1">
                                 {elaResult.anomalies.map((a, i) => (
+                                  <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
+                    {univfdResult && univfdResult.available && (
+                      <AccordionItem value="univfd">
+                        <AccordionTrigger className="text-sm font-medium">
+                          CLIP / UnivFD Analysis {!univfdResult.modelLoaded && '(zero-shot)'}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>Method:</strong> {univfdResult.method === 'univfd' ? 'UnivFD linear probe' : 'CLIP zero-shot'}</p>
+                            <p><strong>Fake Score:</strong> {(univfdResult.score * 100).toFixed(1)}%</p>
+                            <p><strong>Confidence:</strong> {(univfdResult.confidence * 100).toFixed(1)}%</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Detects: Stable Diffusion, DALL-E, Midjourney, SORA
+                            </p>
+                            {univfdResult.anomalies.length > 0 && (
+                              <ul className="space-y-1 mt-1">
+                                {univfdResult.anomalies.map((a, i) => (
                                   <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
                                 ))}
                               </ul>
