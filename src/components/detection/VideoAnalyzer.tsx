@@ -125,6 +125,10 @@ const VideoAnalyzer = () => {
     setAnalysisProgress(0);
     const timer = getTimingHelper();
 
+    // Reset temporal analyzer so a new video starts with a clean window
+    const { getTemporalAnalyzer } = await import('@/lib/temporal/temporalConsistency');
+    getTemporalAnalyzer().reset();
+
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
