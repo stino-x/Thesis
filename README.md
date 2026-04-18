@@ -18,9 +18,9 @@ A production-grade multi-modal deepfake detection web application. Detects AI-ge
 | Model | Accuracy | Detects | Size |
 |---|---|---|---|
 | SwinV2 AI Detector | 98.1% | SD, DALL-E, Midjourney, Firefly | 307 MB |
-| ViT Deepfake Exp | 98.8% | Face deepfakes (best single model) | 103 MB |
-| ViT Deepfake v2 | 92.1% | Face deepfakes (different training set) | 98 MB |
-| DeepfakeDetector-ONNX | ~90% | Face swaps | 91 MB |
+| ViT Deepfake Exp | 98.8% | Face deepfakes (best single model) | 343 MB |
+| ViT Deepfake v2 | 92.1% | Face deepfakes (different training set) | 343 MB |
+| DeepfakeDetector-ONNX | ~90% | Face swaps | 95 MB |
 | MesoNet4 | ~90% | Classic face swaps | 0.1 MB |
 
 All ONNX models run via ONNX Runtime Web (WASM). Models are hosted on Hugging Face (`stino214/deepfake-onnx-models`) and fetched at runtime — not bundled with the app.
@@ -44,7 +44,7 @@ Models are grouped by specialty, each group votes independently:
 
 - **Group A** (face manipulation, 55% weight): ViT-Exp, ViT-v2, DeepfakeDetector, MesoNet
 - **Group B** (AI-generated content, 35% weight): SwinV2 + CLIP/UnivFD backend
-- **Group C** (forensic signals, 10% weight): PPG, ELA, metadata, lip-sync, voice
+- **Group C** (forensic signals, 10% weight): Temporal consistency, PPG, ELA, metadata, lip-sync, voice
 
 A single model at >92% confidence triggers a boost override. Everything degrades gracefully when models are unavailable.
 
@@ -108,13 +108,16 @@ modal deploy backend/modal_app.py
 │   │   │   └── WebcamDetector.tsx     # Real-time webcam detection
 │   │   └── ui/                        # Shadcn UI components
 │   ├── lib/
-│   │   ├── onnx/onnxDetector.ts       # ONNX Runtime Web — 4 models
+│   │   ├── onnx/
+│   │   │   ├── onnxDetector.ts        # ONNX Runtime Web — 4 models, IndexedDB cache
+│   │   │   └── faceLocalizer.ts       # Crop face region before ViT inference
 │   │   ├── tensorflow/detector.ts     # Ensemble logic + TFJS models
+│   │   ├── temporal/                  # 8-frame sliding window consistency
 │   │   ├── api/univfdClient.ts        # CLIP backend client
 │   │   ├── mediapipe/                 # Face detection + mesh + features
 │   │   ├── forensics/                 # ELA + metadata analysis
-│   │   ├── physiological/             # PPG heartbeat analysis
-│   │   └── audio/                     # Lip-sync + voice analysis
+│   │   ├── physiological/             # PPG heartbeat analysis (video/webcam only)
+│   │   └── audio/                     # Lip-sync (phoneme onset) + voice analysis
 │   └── pages/
 │       ├── Detection.tsx              # Main detection page
 │       ├── AuditLogsPage.tsx          # Detection history
@@ -126,7 +129,8 @@ modal deploy backend/modal_app.py
 │   ├── mesonet/                       # MesoNet4 TF.js weights (included)
 │   └── onnx/                          # ONNX models (download via script)
 └── scripts/
-    ├── download_onnx_models.ps1       # Download all ONNX models
+    ├── download_onnx_models.ps1       # Download all ONNX models locally
+    ├── finetune_univfd.py             # Fine-tune UnivFD probe on custom data
     ├── export_to_onnx.py              # Export XceptionNet/CNNDetector to ONNX
     └── .venv312/                      # Python venv (gitignored)
 ```
