@@ -44,47 +44,55 @@ export class VoiceAnalyzer {
       const spectralAnalysis = await this.analyzeSpectrum(audioBuffer);
       
       // Check 1: Too consistent spectrum (AI voices are often too clean)
-      if (spectralAnalysis.consistency > 0.8) {
+      // Raised threshold — real compressed audio can also be consistent
+      if (spectralAnalysis.consistency > 0.92) {
         anomalies.push('overly_consistent_spectrum');
-        score += 0.4;
+        score += 0.3;
       }
 
-      // Check 2: Missing high-frequency content (compression artifact or AI)
-      if (spectralAnalysis.highFrequencyRatio < 0.1) {
+      // Check 2: Missing high-frequency content
+      // Only flag if very low — many legitimate recordings are band-limited
+      if (spectralAnalysis.highFrequencyRatio < 0.05) {
         anomalies.push('missing_high_frequencies');
-        score += 0.3;
+        score += 0.2;
       }
 
       // Check 3: Unnatural energy distribution
-      if (spectralAnalysis.energyDistribution < 0.2) {
+      if (spectralAnalysis.energyDistribution < 0.15) {
         anomalies.push('unnatural_energy_distribution');
-        score += 0.3;
+        score += 0.2;
       }
 
       // Analyze temporal characteristics
       const temporalAnalysis = this.analyzeTemporalFeatures(audioBuffer);
 
-      // Check 4: Too little pitch variation (robotic)
-      if (temporalAnalysis.pitchVariability < 0.1) {
+      // Check 4: Too little pitch variation — require very low threshold
+      // Normal speech has ZCR variability > 0.05; robotic TTS is near 0
+      if (temporalAnalysis.pitchVariability < 0.03) {
         anomalies.push('low_pitch_variability');
-        score += 0.4;
+        score += 0.35;
       }
 
-      // Check 5: Unnatural amplitude envelope
-      if (temporalAnalysis.envelopeConsistency > 0.9) {
+      // Check 5: Unnatural amplitude envelope — raised threshold
+      if (temporalAnalysis.envelopeConsistency > 0.95) {
         anomalies.push('overly_consistent_amplitude');
-        score += 0.2;
+        score += 0.15;
       }
 
-      // Check 6: Spectral artifacts in specific frequency bands
-      if (spectralAnalysis.hasArtifacts) {
+      // Check 6: Spectral artifacts — only flag if energy distribution also suspicious
+      if (spectralAnalysis.hasArtifacts && spectralAnalysis.energyDistribution < 0.3) {
         anomalies.push('frequency_band_artifacts');
-        score += 0.5;
+        score += 0.3;
       }
+
+      // Require at least 2 signals to produce a meaningful score
+      // Single-signal detections have too many false positives
+      const signalCount = anomalies.length;
+      if (signalCount < 2) score = score * 0.4;
 
       return {
         score: Math.min(score, 1.0),
-        confidence: 0.6, // Moderate confidence (this is simplified analysis)
+        confidence: signalCount >= 2 ? 0.55 : 0.25, // low confidence for single signals
         anomalies,
         details: {
           spectralConsistency: spectralAnalysis.consistency,
