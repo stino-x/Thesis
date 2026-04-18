@@ -282,26 +282,54 @@ export class PPGAnalyzer {
   }
 
   /**
-   * Simple FFT implementation for pulse detection
-   * (Simplified DFT for our needs)
+   * Cooley-Tukey radix-2 FFT (O(N log N)) replacing the previous O(N²) DFT.
+   * Input length is zero-padded to the next power of two for efficiency.
    */
   private simpleFFT(signal: number[]): { re: number; im: number }[] {
-    const N = signal.length;
-    const result: { re: number; im: number }[] = [];
+    // Pad to next power of 2
+    let N = 1;
+    while (N < signal.length) N <<= 1;
+    const re = new Float64Array(N);
+    const im = new Float64Array(N);
+    for (let i = 0; i < signal.length; i++) re[i] = signal[i];
 
-    for (let k = 0; k < N; k++) {
-      let re = 0;
-      let im = 0;
-
-      for (let n = 0; n < N; n++) {
-        const angle = (-2 * Math.PI * k * n) / N;
-        re += signal[n] * Math.cos(angle);
-        im += signal[n] * Math.sin(angle);
+    // Bit-reversal permutation
+    let j = 0;
+    for (let i = 1; i < N; i++) {
+      let bit = N >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        [re[i], re[j]] = [re[j], re[i]];
+        [im[i], im[j]] = [im[j], im[i]];
       }
-
-      result.push({ re, im });
     }
 
+    // Cooley-Tukey butterfly
+    for (let len = 2; len <= N; len <<= 1) {
+      const ang = (-2 * Math.PI) / len;
+      const wRe = Math.cos(ang);
+      const wIm = Math.sin(ang);
+      for (let i = 0; i < N; i += len) {
+        let curRe = 1, curIm = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const uRe = re[i + k];
+          const uIm = im[i + k];
+          const vRe = re[i + k + len / 2] * curRe - im[i + k + len / 2] * curIm;
+          const vIm = re[i + k + len / 2] * curIm + im[i + k + len / 2] * curRe;
+          re[i + k]           = uRe + vRe;
+          im[i + k]           = uIm + vIm;
+          re[i + k + len / 2] = uRe - vRe;
+          im[i + k + len / 2] = uIm - vIm;
+          const nextRe = curRe * wRe - curIm * wIm;
+          curIm        = curRe * wIm + curIm * wRe;
+          curRe        = nextRe;
+        }
+      }
+    }
+
+    const result: { re: number; im: number }[] = [];
+    for (let i = 0; i < N; i++) result.push({ re: re[i], im: im[i] });
     return result;
   }
 
