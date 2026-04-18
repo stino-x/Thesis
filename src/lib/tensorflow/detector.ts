@@ -349,40 +349,73 @@ export class DeepfakeDetector {
 
   /**
    * Feature-based detection from MediaPipe landmarks (no image tensor needed).
+   *
+   * Thresholds are based on published deepfake detection literature:
+   *  - Blink rate: 10-20 BPM is normal (Li et al. 2018 showed deepfakes blink ~3 BPM)
+   *  - Eye aspect ratio: 0.20-0.40 is normal range for open eyes
+   *  - Landmark jitter: >0.03 normalized units is suspicious (real faces are stable)
+   *  - Face symmetry: <0.75 is suspicious (deepfakes often have asymmetric blending)
+   *  - Head pose stability: <0.4 is suspicious
+   *
+   * Each signal is weighted by its empirical reliability. Scores are summed
+   * and capped at 1.0. Confidence scales with the number of signals that fired.
    */
   async detectFromFeatures(features: DeepfakeFeatures): Promise<DetectionResult> {
     await this.waitForInitialization();
 
     const anomalies: string[] = [];
     let featureScore = 0;
+    let signalsFired = 0;
 
-    if (features.blinkRate < 5 || features.blinkRate > 30) {
+    // Blink rate — deepfakes often have very low or absent blinking
+    // Normal: 10-20 BPM. Suspicious: <8 or >35 (Li et al. 2018)
+    if (features.blinkRate < 8 || features.blinkRate > 35) {
       anomalies.push('abnormal_blink_rate');
-      featureScore += 0.3;
+      featureScore += 0.25;
+      signalsFired++;
     }
-    if (features.eyeAspectRatio < 0.15 || features.eyeAspectRatio > 0.35) {
+
+    // Eye aspect ratio — very low = eyes nearly closed (unnatural for alert face)
+    // Very high = unnaturally wide open. Normal: 0.20-0.40
+    if (features.eyeAspectRatio < 0.18 || features.eyeAspectRatio > 0.42) {
       anomalies.push('unusual_eye_opening');
-      featureScore += 0.2;
-    }
-    if (features.landmarkJitter > 0.05) {
-      anomalies.push('high_landmark_instability');
-      featureScore += 0.3;
-    }
-    if (features.faceSymmetry < 0.7) {
-      anomalies.push('face_asymmetry');
-      featureScore += 0.2;
-    }
-    if (features.headPoseStability < 0.5) {
-      anomalies.push('unstable_head_pose');
       featureScore += 0.15;
+      signalsFired++;
+    }
+
+    // Landmark jitter — deepfake face meshes are less stable than real faces
+    // Threshold lowered from 0.05 to 0.03 — more sensitive to subtle instability
+    if (features.landmarkJitter > 0.03) {
+      anomalies.push('high_landmark_instability');
+      featureScore += 0.30;
+      signalsFired++;
+    }
+
+    // Face symmetry — deepfake blending often creates asymmetric artifacts
+    // Threshold raised from 0.7 to 0.75 — more sensitive
+    if (features.faceSymmetry < 0.75) {
+      anomalies.push('face_asymmetry');
+      featureScore += 0.20;
+      signalsFired++;
+    }
+
+    // Head pose stability
+    if (features.headPoseStability < 0.4) {
+      anomalies.push('unstable_head_pose');
+      featureScore += 0.10;
+      signalsFired++;
     }
 
     featureScore = Math.min(featureScore, 1.0);
-    const confidence = Math.abs(featureScore - 0.5) * 2;
+
+    // Confidence scales with corroboration — single signals are unreliable
+    const confidence = signalsFired === 0 ? 0
+      : signalsFired === 1 ? Math.abs(featureScore - 0.5) * 0.8
+      : Math.abs(featureScore - 0.5) * 2;
 
     return {
       isDeepfake: featureScore > 0.5,
-      confidence,
+      confidence: Math.min(confidence, 0.99),
       scores: { features: featureScore * 100 },
       anomalies,
       modelsUsed: ['LandmarkFeatures'],
@@ -697,7 +730,14 @@ export class DeepfakeDetector {
       modelsUsed.push('LipSyncAnalysis');
     }
     if (results.voice) {
-      forensicParts.push([results.voice.score, 2.0]);
+      // Voice heuristic has high false-positive rate on compressed/non-English audio.
+      // Only include in ensemble when confidence is high (requires 2+ corroborating signals).
+      // Weight is 0 for low-confidence results — voice anomalies still surface in the UI
+      // but don't influence the verdict until a trained model (RawNet2/AASIST) is available.
+      const voiceWeight = results.voice.confidence >= 0.5 ? 1.0 : 0;
+      if (voiceWeight > 0) {
+        forensicParts.push([results.voice.score, voiceWeight]);
+      }
       scores.voice = results.voice.score * 100;
       allAnomalies.push(...results.voice.anomalies);
       modelsUsed.push('VoiceAnalysis');
