@@ -9,6 +9,7 @@
  */
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8787';
+const BACKEND_SECRET = import.meta.env.VITE_BACKEND_SECRET || '';
 
 export interface UnivFDResult {
   isDeepfake: boolean;
@@ -21,6 +22,17 @@ export interface UnivFDResult {
 }
 
 let _backendAvailable: boolean | null = null; // cached after first check
+
+/**
+ * Get headers with optional authentication
+ */
+function getHeaders(): HeadersInit {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (BACKEND_SECRET) {
+    headers['X-API-Key'] = BACKEND_SECRET;
+  }
+  return headers;
+}
 
 /**
  * Check if the backend is reachable. Cached after first call.
@@ -57,13 +69,16 @@ export async function detectWithUnivFD(
 
     const res = await fetch(`${BACKEND_URL}/detect`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ image: imageDataUrl, filename }),
       signal: AbortSignal.timeout(15000), // 15s timeout for CLIP inference
     });
 
     if (!res.ok) {
       console.warn(`UnivFD backend error: ${res.status}`);
+      if (res.status === 401) {
+        console.error('Backend authentication failed — check VITE_BACKEND_SECRET in .env');
+      }
       return null;
     }
 
@@ -93,12 +108,17 @@ export async function detectFileWithUnivFD(file: File): Promise<UnivFDResult | n
 
     const res = await fetch(`${BACKEND_URL}/detect`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ image: dataUrl, filename: file.name }),
       signal: AbortSignal.timeout(15000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 401) {
+        console.error('Backend authentication failed — check VITE_BACKEND_SECRET in .env');
+      }
+      return null;
+    }
     const data = await res.json();
     return { ...data, available: true };
   } catch (e) {

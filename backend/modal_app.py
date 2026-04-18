@@ -13,11 +13,19 @@ This gives you a public HTTPS URL like:
 
 Set it in your .env:
     VITE_BACKEND_URL=https://your-username--deepfake-detect-api.modal.run
+    VITE_BACKEND_SECRET=your-secret-key-here
+
+Authentication:
+    The backend requires a shared secret in the X-API-Key header to prevent abuse.
+    Generate a random secret and set it in both .env files:
+        Backend: BACKEND_SECRET=your-secret-key
+        Frontend: VITE_BACKEND_SECRET=your-secret-key
 """
 
 import io
 import base64
 import urllib.request
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -139,10 +147,13 @@ class Detector:
 
 # ── FastAPI wrapper (same interface as local backend) ─────────────────────────
 
-@app.function(image=image)
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("deepfake-backend-secret")],
+)
 @modal.asgi_app()
 def fastapi_app():
-    from fastapi import FastAPI
+    from fastapi import FastAPI, HTTPException, Header
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
 
@@ -154,16 +165,39 @@ def fastapi_app():
         allow_headers=["*"],
     )
 
+    # Get secret from Modal secret or environment variable
+    BACKEND_SECRET = os.environ.get("BACKEND_SECRET")
+    if not BACKEND_SECRET:
+        print("WARNING: BACKEND_SECRET not set — authentication disabled!")
+
+    def verify_auth(x_api_key: Optional[str] = Header(None)):
+        """Verify the shared secret header to prevent abuse"""
+        if not BACKEND_SECRET:
+            return  # Auth disabled if no secret configured
+        if not x_api_key or x_api_key != BACKEND_SECRET:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing X-API-Key header"
+            )
+
     class DetectRequest(BaseModel):
         image: str
         filename: Optional[str] = "image.jpg"
 
     @web_app.get("/health")
     def health():
-        return {"status": "ok", "clip_loaded": True, "univfd_loaded": True}
+        return {
+            "status": "ok",
+            "clip_loaded": True,
+            "univfd_loaded": True,
+            "auth_enabled": BACKEND_SECRET is not None,
+        }
 
     @web_app.post("/detect")
-    def detect(req: DetectRequest):
+    def detect(req: DetectRequest, _auth=None):
+        # Verify auth first
+        if BACKEND_SECRET:
+            verify_auth(_auth)
         detector = Detector()
         return detector.detect.remote(req.image, req.filename or "image.jpg")
 
