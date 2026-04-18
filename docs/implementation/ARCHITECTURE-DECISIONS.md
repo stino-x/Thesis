@@ -123,3 +123,11 @@ The group weights (55/35/10) reflect the relative reliability of each category: 
 **Decision:** `backend/main.py` downloads `fc_weights.pth` from GitHub on first startup if not present.
 
 **Why:** The UnivFD weights are only 4 KB (a single linear layer). There's no reason to require manual download. Auto-downloading on startup means the backend works out of the box with no setup steps beyond installing dependencies. The weights are cached in `backend/weights/` (gitignored) after the first download.
+
+---
+
+## 16. Why ONNX models are hosted on Hugging Face instead of bundled in the repo
+
+**Decision:** The 4 ONNX model files (~1.1 GB total) are hosted at `huggingface.co/stino214/deepfake-onnx-models` and fetched at runtime via URL in `onnxDetector.ts`.
+
+**Why:** Vercel has a 100 MB per-file static asset limit (Free) and 1 GB (Pro). The models are 307 MB, 343 MB, 343 MB, and 95 MB — three of four exceed even the Pro limit. Git LFS would solve version control but not the Vercel deployment problem. Hugging Face is purpose-built for hosting ML model files, serves them via CloudFront CDN, has no per-file size limit up to 500 GB, and is free for public repos. The browser fetches the model directly from HF at runtime — Vercel never touches the files. `public/models/onnx/` is gitignored to prevent accidental commits.

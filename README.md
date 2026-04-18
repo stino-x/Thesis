@@ -23,7 +23,7 @@ A production-grade multi-modal deepfake detection web application. Detects AI-ge
 | DeepfakeDetector-ONNX | ~90% | Face swaps | 91 MB |
 | MesoNet4 | ~90% | Classic face swaps | 0.1 MB |
 
-All ONNX models run via ONNX Runtime Web (WASM). Models load from `/public/models/onnx/` on first use.
+All ONNX models run via ONNX Runtime Web (WASM). Models are hosted on Hugging Face (`stino214/deepfake-onnx-models`) and fetched at runtime — not bundled with the app.
 
 ### Backend (CLIP/UnivFD — hosted free on Modal.com)
 
@@ -67,13 +67,13 @@ Open `http://localhost:5173`
 
 ### Download ONNX Models
 
-Models are not in git (too large). Download them once:
+Models are hosted on Hugging Face and fetched automatically at runtime — no download needed. If you want local copies for offline development:
 
 ```powershell
 .\scripts\download_onnx_models.ps1
 ```
 
-This downloads all 4 ONNX models (~600 MB total) to `public/models/onnx/`.
+This downloads all 4 ONNX models (~1.1 GB total) to `public/models/onnx/` (gitignored).
 
 ### Backend (optional — already deployed to Modal)
 
