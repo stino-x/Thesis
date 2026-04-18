@@ -24,6 +24,8 @@ import { getPPGAnalyzer, type PPGAnalysisResult } from '../physiological/ppgAnal
 import { getLipSyncAnalyzer, type LipSyncAnalysisResult } from '../audio/lipSyncAnalyzer';
 import { getVoiceAnalyzer, type VoiceAnalysisResult } from '../audio/voiceAnalyzer';
 import { detectWithOnnx, initOnnxDetector } from '../onnx/onnxDetector';
+import { mediapipeBboxToFaceBbox } from '../onnx/faceLocalizer';
+import { getTemporalAnalyzer, type TemporalAnalysisResult } from '../temporal/temporalConsistency';
 
 type NormalizedLandmark = { x: number; y: number; z: number };
 
@@ -68,6 +70,7 @@ export interface DetectionResult {
     ppg?: PPGAnalysisResult;
     lipSync?: LipSyncAnalysisResult;
     voice?: VoiceAnalysisResult;
+    temporal?: TemporalAnalysisResult;
   };
 }
 
@@ -196,7 +199,7 @@ export class DeepfakeDetector {
    * Group B (AI-generated):      SwinV2-AI-Detector
    * Group C (forensic/texture):  TextureHeuristic, MobileNet fallback
    */
-  async detectFromImage(imageTensor: tf.Tensor, canvas?: HTMLCanvasElement): Promise<DetectionResult> {
+  async detectFromImage(imageTensor: tf.Tensor, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }): Promise<DetectionResult> {
     await this.waitForInitialization();
 
     const scores: DetectionResult['scores'] = {};
@@ -244,7 +247,8 @@ export class DeepfakeDetector {
 
     if (canvas) {
       try {
-        const onnx = await detectWithOnnx(canvas, this.threshold);
+        const bbox = faceBbox ? mediapipeBboxToFaceBbox(faceBbox) : null;
+        const onnx = await detectWithOnnx(canvas, bbox);
 
         // Group A: face-specific detectors
         if (onnx.vitDeepfakeExp?.available) {
@@ -387,11 +391,11 @@ export class DeepfakeDetector {
   /**
    * Ensemble: CNN image result + landmark features combined.
    */
-  async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement): Promise<DetectionResult> {
+  async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }): Promise<DetectionResult> {
     const imageTensor = tf.browser.fromPixels(imageData).div(255.0);
 
     try {
-      const imageResult = await this.detectFromImage(imageTensor, canvas);
+      const imageResult = await this.detectFromImage(imageTensor, canvas, faceBbox);
 
       if (!features) return imageResult;
 
@@ -421,23 +425,31 @@ export class DeepfakeDetector {
     features?: DeepfakeFeatures;
     faceMesh?: NormalizedLandmark[];
     canvas?: HTMLCanvasElement;
+    faceBbox?: { xMin: number; yMin: number; width: number; height: number };
     audioBuffer?: AudioBuffer;
     file?: File;
     timestamp?: number;
+    isVideoFrame?: boolean;
     univfd?: { score: number; confidence: number; isDeepfake: boolean; anomalies: string[]; modelLoaded: boolean };
   }): Promise<DetectionResult> {
-    const { imageData, features, faceMesh, canvas, audioBuffer, file, timestamp, univfd } = options;
+    const { imageData, features, faceMesh, canvas, faceBbox, audioBuffer, file, timestamp, univfd } = options;
 
     const results: Parameters<typeof this.combineMultiModalResults>[0] = {};
 
     if (imageData) {
-      results.visual = await this.detectEnsemble(imageData, features, canvas);
+      results.visual = await this.detectEnsemble(imageData, features, canvas, faceBbox);
     }
     if (file) {
       results.metadata = await getMetadataAnalyzer().analyzeFile(file);
     }
     if (faceMesh && canvas && timestamp !== undefined) {
-      results.ppg = await getPPGAnalyzer().analyzePPG(faceMesh, canvas, timestamp);
+      // PPG requires temporal data — only run when we have a frame sequence
+      // (webcam/video). For single images the analyzer will return
+      // insufficient_data anyway, but we skip the call to avoid noise.
+      const isVideoOrWebcam = options.isVideoFrame === true;
+      if (isVideoOrWebcam) {
+        results.ppg = await getPPGAnalyzer().analyzePPG(faceMesh, canvas, timestamp);
+      }
     }
     if (faceMesh && audioBuffer && timestamp !== undefined) {
       results.lipSync = await getLipSyncAnalyzer().analyzeLipSync(faceMesh, audioBuffer, timestamp);
@@ -447,6 +459,18 @@ export class DeepfakeDetector {
     }
     if (univfd) {
       results.univfd = univfd;
+    }
+
+    // Feed visual result into temporal sliding window (video/webcam only)
+    let temporalResult: TemporalAnalysisResult | undefined;
+    if (results.visual && options.isVideoFrame) {
+      const visualScore = results.visual.confidence * (results.visual.isDeepfake ? 1 : 0);
+      temporalResult = getTemporalAnalyzer().addFrame({
+        score: visualScore,
+        isDeepfake: results.visual.isDeepfake,
+        timestamp: options.timestamp ?? Date.now(),
+      });
+      results.temporal = temporalResult;
     }
 
     return this.combineMultiModalResults(results);
@@ -625,6 +649,7 @@ export class DeepfakeDetector {
     ppg?: PPGAnalysisResult;
     lipSync?: LipSyncAnalysisResult;
     voice?: VoiceAnalysisResult;
+    temporal?: TemporalAnalysisResult;
     univfd?: { score: number; confidence: number; isDeepfake: boolean; anomalies: string[]; modelLoaded: boolean };
   }): DetectionResult {
     const scores: DetectionResult['scores'] = {};
@@ -677,6 +702,14 @@ export class DeepfakeDetector {
       modelsUsed.push('VoiceAnalysis');
     }
 
+    // Temporal consistency — strong signal for video deepfakes
+    if (results.temporal && results.temporal.confidence > 0.3) {
+      forensicParts.push([results.temporal.score, 3.0]); // high weight — hard to fake
+      scores.temporal = results.temporal.score * 100;
+      allAnomalies.push(...results.temporal.anomalies);
+      modelsUsed.push('TemporalConsistency');
+    }
+
     const forensicScore = forensicParts.length > 0
       ? forensicParts.reduce((s, [sc, w]) => s + sc * w, 0) / forensicParts.reduce((s, [, w]) => s + w, 0)
       : null;
@@ -709,6 +742,7 @@ export class DeepfakeDetector {
         ppg: results.ppg,
         lipSync: results.lipSync,
         voice: results.voice,
+        temporal: results.temporal,
       },
     };
   }
