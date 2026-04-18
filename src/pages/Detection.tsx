@@ -94,19 +94,23 @@ const Detection = () => {
 
       <main className="flex-1 container mx-auto py-8 px-4 max-w-7xl relative z-10">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8 animate-slide-up">
         <div className="flex items-center gap-3 mb-4">
-          <Shield className="h-10 w-10 text-primary" />
+          <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 shadow-lg">
+            <Shield className="h-10 w-10 text-primary" />
+          </div>
           <div>
-            <h1 className="text-4xl font-bold">Deepfake Detection</h1>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Deepfake Detection
+            </h1>
             <p className="text-muted-foreground mt-1">
               Analyze media content for AI-generated or manipulated faces
             </p>
           </div>
         </div>
 
-        <Alert>
-          <Info className="h-4 w-4" />
+        <Alert className="border-primary/20 bg-primary/5">
+          <Info className="h-4 w-4 text-primary" />
           <AlertTitle>How it works</AlertTitle>
           <AlertDescription>
             Our detection system runs an ensemble of 5+ ML models simultaneously — ViT-based ONNX models
@@ -120,32 +124,35 @@ const Detection = () => {
 
       {/* Detection Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="webcam" className="gap-2">
+        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid h-12 p-1 bg-muted/50 backdrop-blur-sm">
+          <TabsTrigger value="webcam" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Camera className="h-4 w-4" />
             <span className="hidden sm:inline">Webcam</span>
           </TabsTrigger>
-          <TabsTrigger value="image" className="gap-2">
+          <TabsTrigger value="image" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Image className="h-4 w-4" />
             <span className="hidden sm:inline">Image</span>
           </TabsTrigger>
-          <TabsTrigger value="video" className="gap-2">
+          <TabsTrigger value="video" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Video className="h-4 w-4" />
             <span className="hidden sm:inline">Video</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Webcam Detection */}
-        <TabsContent value="webcam" className="space-y-6">
+        <TabsContent value="webcam" className="space-y-6 animate-slide-up">
           <ModelLoadingStatus />
-          <Card>
-            <CardHeader>
-              <CardTitle>Real-time Webcam Detection</CardTitle>
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+              <div className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-primary" />
+                <CardTitle>Real-time Webcam Detection</CardTitle>
+              </div>
               <CardDescription>
                 Analyze live video feed from your webcam for deepfake manipulation
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <DetectionErrorBoundary label="Webcam detection">
                 <Suspense fallback={<DetectorFallback />}>
                   <WebcamDetector />
@@ -157,7 +164,7 @@ const Detection = () => {
         </TabsContent>
 
         {/* Image Analysis */}
-        <TabsContent value="image" className="space-y-6">
+        <TabsContent value="image" className="space-y-6 animate-slide-up">
           <ModelLoadingStatus />
           <DetectionErrorBoundary label="Image analysis">
             <Suspense fallback={<DetectorFallback />}>
@@ -167,7 +174,7 @@ const Detection = () => {
         </TabsContent>
 
         {/* Video Analysis */}
-        <TabsContent value="video" className="space-y-6">
+        <TabsContent value="video" className="space-y-6 animate-slide-up">
           <ModelLoadingStatus />
           <DetectionErrorBoundary label="Video analysis">
             <Suspense fallback={<DetectorFallback />}>
@@ -178,54 +185,108 @@ const Detection = () => {
       </Tabs>
 
       {/* Info Section */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Detection Capabilities</CardTitle>
+      <Card className="mt-8 overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <CardTitle>Detection Capabilities</CardTitle>
+          </div>
           <CardDescription>
             Advanced features for comprehensive deepfake detection
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid gap-6 md:grid-cols-3">
-            <div className="space-y-2">
+            <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 hover:shadow-lg transition-all">
               <h3 className="font-semibold flex items-center gap-2">
-                <Camera className="h-5 w-5 text-primary" />
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Camera className="h-5 w-5 text-primary" />
+                </div>
                 Webcam Analysis
               </h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• ViT-Deepfake-Exp (98.8% accuracy) via ONNX</li>
-                <li>• SwinV2 AI-generation detector (98.1%)</li>
-                <li>• PPG blood-flow physiological signal</li>
-                <li>• 468-point MediaPipe face mesh</li>
-                <li>• Continuous monitoring with FPS tracking</li>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>ViT-Deepfake-Exp (98.8% accuracy) via ONNX</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>SwinV2 AI-generation detector (98.1%)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>PPG blood-flow physiological signal</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>468-point MediaPipe face mesh</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>Continuous monitoring with FPS tracking</span>
+                </li>
               </ul>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-accent/5 to-accent/10 border border-accent/20 hover:shadow-lg transition-all">
               <h3 className="font-semibold flex items-center gap-2">
-                <Image className="h-5 w-5 text-primary" />
+                <div className="p-2 rounded-lg bg-accent/10">
+                  <Image className="h-5 w-5 text-accent" />
+                </div>
                 Image Analysis
               </h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• ViT-Deepfake-Exp + ViT-v2 + MesoNet4</li>
-                <li>• CLIP/UnivFD backend (unseen generators)</li>
-                <li>• Error Level Analysis (ELA) forensics</li>
-                <li>• Metadata anomaly detection</li>
-                <li>• Drag & drop with detailed report export</li>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-accent mt-0.5">•</span>
+                  <span>ViT-Deepfake-Exp + ViT-v2 + MesoNet4</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent mt-0.5">•</span>
+                  <span>CLIP/UnivFD backend (unseen generators)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent mt-0.5">•</span>
+                  <span>Error Level Analysis (ELA) forensics</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent mt-0.5">•</span>
+                  <span>Metadata anomaly detection</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-accent mt-0.5">•</span>
+                  <span>Drag & drop with detailed report export</span>
+                </li>
               </ul>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-blue-500/5 to-blue-500/10 border border-blue-500/20 hover:shadow-lg transition-all">
               <h3 className="font-semibold flex items-center gap-2">
-                <Video className="h-5 w-5 text-primary" />
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <Video className="h-5 w-5 text-blue-500" />
+                </div>
                 Video Analysis
               </h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Batched frame analysis (4 frames parallel)</li>
-                <li>• Temporal consistency (8-frame window)</li>
-                <li>• Phoneme-based lip-sync detection</li>
-                <li>• Voice artifact analysis</li>
-                <li>• Suspicious segment timeline</li>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <span>Batched frame analysis (4 frames parallel)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <span>Temporal consistency (8-frame window)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <span>Phoneme-based lip-sync detection</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <span>Voice artifact analysis</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <span>Suspicious segment timeline</span>
+                </li>
               </ul>
             </div>
           </div>
@@ -236,9 +297,12 @@ const Detection = () => {
       </Card>
 
       {/* Technical Details */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Technical Details</CardTitle>
+      <Card className="mt-8 overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-primary" />
+            <CardTitle>Technical Details</CardTitle>
+          </div>
           <CardDescription>
             The technology powering our detection system
           </CardDescription>

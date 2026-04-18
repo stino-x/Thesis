@@ -16,9 +16,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
-import { Upload, Video as VideoIcon, AlertCircle, CheckCircle, Download, Play, Pause, RefreshCw } from 'lucide-react';
+import { Upload, Video as VideoIcon, AlertCircle, CheckCircle, Download, Play, Pause, RefreshCw, Sparkles, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { UploadZone } from '@/components/ui/upload-zone';
 
 import { loadVideo, extractFrames, validateVideoFile, formatFileSize, formatDuration } from '@/utils/videoUtils';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
@@ -490,45 +491,44 @@ const VideoAnalyzer = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       {/* Upload Area */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Video Upload</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <CardTitle>Video Upload</CardTitle>
+          </div>
           <CardDescription>
             Upload a video to analyze for deepfake manipulation
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div
+        <CardContent className="pt-6">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/ogg"
+            className="hidden"
+            onChange={(e) =>
+              e.target.files?.[0] && handleFileSelect(e.target.files[0])
+            }
+          />
+          
+          <UploadZone
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/ogg"
-              className="hidden"
-              onChange={(e) =>
-                e.target.files?.[0] && handleFileSelect(e.target.files[0])
-              }
-            />
-            <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg font-medium mb-2">
-              Drop your video here or click to browse
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Supports MP4, WebM, OGG • Maximum 100MB
-            </p>
-          </div>
+            title="Drop your video here or click to browse"
+            description="Supports MP4, WebM, OGG • Maximum 100MB"
+          />
 
           {selectedFile && (
-            <div className="mt-4 p-4 bg-muted rounded-lg">
+            <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg border border-primary/20 animate-scale-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <VideoIcon className="h-5 w-5" />
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <VideoIcon className="h-5 w-5 text-primary" />
+                  </div>
                   <div>
                     <p className="font-medium">{selectedFile.name}</p>
                     <p className="text-sm text-muted-foreground">
@@ -541,7 +541,8 @@ const VideoAnalyzer = () => {
                   <Button
                     onClick={analyzeVideo}
                     disabled={isAnalyzing}
-                    className="gap-2"
+                    size="lg"
+                    className="gap-2 shadow-lg hover:shadow-xl"
                   >
                     {isAnalyzing ? (
                       <>
@@ -549,22 +550,32 @@ const VideoAnalyzer = () => {
                         Analyzing...
                       </>
                     ) : (
-                      'Analyze Video'
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analyze Video
+                      </>
                     )}
                   </Button>
-                  <Button onClick={reset} variant="outline">
+                  <Button onClick={reset} variant="outline" size="lg" className="gap-2">
+                    <RefreshCw className="h-4 w-4" />
                     Clear
                   </Button>
                 </div>
               </div>
 
               {isAnalyzing && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Analysis Progress</span>
-                    <span>{Math.round(analysisProgress)}%</span>
+                <div className="mt-4 space-y-3 animate-slide-up">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      Analyzing video frames...
+                    </span>
+                    <span className="text-muted-foreground">{Math.round(analysisProgress)}%</span>
                   </div>
                   <Progress value={analysisProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Processing with temporal consistency and multi-modal analysis
+                  </p>
                 </div>
               )}
             </div>
@@ -577,9 +588,12 @@ const VideoAnalyzer = () => {
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Video Player */}
           <div className="lg:col-span-2 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Video Player</CardTitle>
+            <Card className="overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+                <div className="flex items-center gap-2">
+                  <Eye className="h-5 w-5 text-primary" />
+                  <CardTitle>Video Player</CardTitle>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
@@ -658,16 +672,19 @@ const VideoAnalyzer = () => {
           </div>
 
           {/* Results Panel */}
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
               <div className="flex items-center justify-between">
-                <CardTitle>Analysis Results</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <CardTitle>Analysis Results</CardTitle>
+                </div>
                 {overallResult && (
                   <Button
                     onClick={exportReport}
                     variant="outline"
                     size="sm"
-                    className="gap-2"
+                    className="gap-2 hover:bg-primary/10"
                   >
                     <Download className="h-4 w-4" />
                     Export
@@ -675,65 +692,90 @@ const VideoAnalyzer = () => {
                 )}
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {overallResult ? (
-                <div className="space-y-4">
-                  {/* Status */}
-                  <div className="flex items-center gap-3">
-                    {overallResult.isDeepfake ? (
-                      <>
-                        <AlertCircle className="h-8 w-8 text-red-500" />
-                        <Badge variant="destructive" className="text-base px-3 py-1">
-                          DEEPFAKE
-                        </Badge>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-8 w-8 text-green-500" />
-                        <Badge className="text-base px-3 py-1">AUTHENTIC</Badge>
-                      </>
-                    )}
+                <div className="space-y-6 animate-scale-in">
+                  {/* Status Badge - Enhanced */}
+                  <div className={`p-6 rounded-lg border-2 ${
+                    overallResult.isDeepfake 
+                      ? 'bg-red-500/10 border-red-500/50 shadow-lg shadow-red-500/20' 
+                      : 'bg-green-500/10 border-green-500/50 shadow-lg shadow-green-500/20'
+                  } transition-all duration-300`}>
+                    <div className="flex items-center gap-4">
+                      {overallResult.isDeepfake ? (
+                        <>
+                          <div className="p-3 rounded-full bg-red-500/20 animate-pulse-glow">
+                            <AlertCircle className="h-8 w-8 text-red-500" />
+                          </div>
+                          <div className="flex-1">
+                            <Badge variant="destructive" className="text-base px-4 py-1.5 shadow-lg">
+                              ⚠️ DEEPFAKE DETECTED
+                            </Badge>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              This video shows signs of manipulation
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-3 rounded-full bg-green-500/20">
+                            <CheckCircle className="h-8 w-8 text-green-500" />
+                          </div>
+                          <div className="flex-1">
+                            <Badge className="text-base px-4 py-1.5 bg-green-500 hover:bg-green-600 shadow-lg">
+                              ✓ AUTHENTIC
+                            </Badge>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              No signs of manipulation detected
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Confidence */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Confidence</span>
-                      <span className="font-medium">
+                  {/* Confidence - Enhanced */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/50">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Confidence Score</span>
+                      <span className="text-2xl font-bold text-primary">
                         {(overallResult.confidence * 100).toFixed(1)}%
                       </span>
                     </div>
-                    <Progress value={overallResult.confidence * 100} className="h-2" />
+                    <Progress value={overallResult.confidence * 100} className="h-3" />
+                    <p className="text-xs text-muted-foreground">
+                      Based on {frameResults.length} frames analyzed
+                    </p>
                   </div>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Frames Analyzed</p>
-                      <p className="font-medium">{frameResults.length}</p>
+                  {/* Stats - Enhanced */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-xs text-muted-foreground">Frames Analyzed</p>
+                      <p className="text-lg font-bold text-primary">{frameResults.length}</p>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Deepfake Frames</p>
-                      <p className="font-medium">
+                    <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                      <p className="text-xs text-muted-foreground">Deepfake Frames</p>
+                      <p className="text-lg font-bold text-red-500">
                         {frameResults.filter((f) => f.result.isDeepfake).length}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Processing Time</p>
-                      <p className="font-medium">{processingTime}ms</p>
+                    <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                      <p className="text-xs text-muted-foreground">Processing Time</p>
+                      <p className="text-lg font-bold">{processingTime}ms</p>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Suspicious Segments</p>
-                      <p className="font-medium">{suspiciousSegments.length}</p>
+                    <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                      <p className="text-xs text-muted-foreground">Suspicious Segments</p>
+                      <p className="text-lg font-bold text-orange-500">{suspiciousSegments.length}</p>
                     </div>
                   </div>
 
-                  {/* Temporal Consistency */}
+                  {/* Temporal Consistency - Enhanced */}
                   {overallResult.scores.temporal !== undefined && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Temporal Consistency</span>
-                        <span className="font-medium">
+                    <div className="space-y-3 p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Temporal Consistency</span>
+                        <span className="text-xl font-bold text-blue-500">
                           {(overallResult.scores.temporal * 100).toFixed(1)}%
                         </span>
                       </div>
@@ -741,42 +783,59 @@ const VideoAnalyzer = () => {
                         value={overallResult.scores.temporal * 100}
                         className="h-2"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Frame-to-frame consistency analysis
+                      </p>
                     </div>
                   )}
 
-                  {/* Segments List */}
+                  {/* Segments List - Enhanced */}
                   {suspiciousSegments.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Suspicious Segments</h4>
+                    <div className="space-y-3 p-4 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                      <h4 className="font-semibold text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                        <AlertCircle className="h-4 w-4" />
+                        Suspicious Segments
+                      </h4>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {suspiciousSegments.map((segment, index) => (
                           <button
                             key={index}
                             onClick={() => seekToSegment(segment)}
-                            className="w-full p-2 text-left text-sm bg-muted hover:bg-muted/70 rounded transition-colors"
+                            className="w-full p-3 text-left text-sm bg-muted hover:bg-muted/70 rounded-lg transition-all hover:shadow-md active:scale-[0.98]"
                           >
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span className="font-medium">
                                 {formatDuration(segment.startTime)} -{' '}
                                 {formatDuration(segment.endTime)}
                               </span>
-                              <span className="text-muted-foreground">
+                              <Badge variant="outline" className="text-orange-500 border-orange-500">
                                 {(segment.avgConfidence * 100).toFixed(0)}%
-                              </span>
+                              </Badge>
                             </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {segment.frameCount} frames
+                            </p>
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Anomalies */}
+                  {/* Anomalies - Enhanced */}
                   {overallResult.anomalies.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Detected Anomalies</h4>
-                      <ul className="space-y-1 text-sm text-muted-foreground">
+                    <div className="space-y-3 p-4 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                      <h4 className="font-semibold text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                        <AlertCircle className="h-4 w-4" />
+                        Detected Anomalies
+                      </h4>
+                      <ul className="space-y-2">
                         {overallResult.anomalies.map((anomaly, index) => (
-                          <li key={index}>• {anomaly.replace(/_/g, ' ')}</li>
+                          <li key={index} className="text-sm flex items-start gap-2">
+                            <span className="text-orange-500 mt-0.5">•</span>
+                            <span className="text-muted-foreground capitalize">
+                              {anomaly.replace(/_/g, ' ')}
+                            </span>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -847,16 +906,24 @@ const VideoAnalyzer = () => {
                     </Accordion>
                   )}
 
-                  {/* Aggregated Score Breakdown */}
+                  {/* Aggregated Score Breakdown - Enhanced */}
                   {Object.keys(overallResult.scores).length > 1 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Score Breakdown</h4>
-                      <div className="space-y-1">
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-primary" />
+                        Score Breakdown
+                      </h4>
+                      <div className="space-y-2">
                         {Object.entries(overallResult.scores).map(([key, val]) => (
                           val !== undefined && (
-                            <div key={key} className="flex justify-between text-sm">
-                              <span className="text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                              <span className="font-medium">{(val * 100).toFixed(1)}%</span>
+                            <div key={key} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="capitalize text-muted-foreground">
+                                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                                </span>
+                                <span className="font-medium">{(val * 100).toFixed(1)}%</span>
+                              </div>
+                              <Progress value={val * 100} className="h-1.5" />
                             </div>
                           )
                         ))}
@@ -865,16 +932,23 @@ const VideoAnalyzer = () => {
                   )}
                 </div>
               ) : isAnalyzing ? (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 mx-auto mb-3 animate-spin text-primary" />
-                  <p className="text-muted-foreground">Analyzing video...</p>
-                  <p className="text-sm text-muted-foreground mt-2">
+                <div className="text-center py-12 animate-slide-up">
+                  <div className="inline-flex p-4 rounded-full bg-primary/10 mb-4">
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                  <p className="text-lg font-medium mb-2">Analyzing video...</p>
+                  <p className="text-2xl font-bold text-primary mb-3">
                     {Math.round(analysisProgress)}%
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Processing frames with multi-modal detection
                   </p>
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>Analyze the video to see results</p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <VideoIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">Analyze the video to see results</p>
+                  <p className="text-sm mt-1">Upload and click analyze to begin</p>
                 </div>
               )}
 

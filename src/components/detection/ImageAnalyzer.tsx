@@ -15,8 +15,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Upload, Image as ImageIcon, AlertCircle, CheckCircle, Download, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Image as ImageIcon, AlertCircle, CheckCircle, Download, RefreshCw, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { UploadZone } from '@/components/ui/upload-zone';
 
 import { loadImage, validateImageFile, formatFileSize } from '@/utils/videoUtils';
 import { drawImageScaled, drawBoundingBox, drawLandmarks, drawConfidenceOverlay, createHeatmap } from '@/utils/canvasUtils';
@@ -419,47 +420,47 @@ const ImageAnalyzer = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       {/* Upload Area */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Image Upload</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <CardTitle>Image Upload</CardTitle>
+          </div>
           <CardDescription>
             Upload an image to analyze for deepfake manipulation
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div
+        <CardContent className="pt-6">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+          />
+          
+          <UploadZone
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-            />
-            <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg font-medium mb-2">
-              Drop your image here or click to browse
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Supports JPEG, PNG, WebP • Maximum 10MB
-            </p>
-          </div>
+            title="Drop your image here or click to browse"
+            description="Supports JPEG, PNG, WebP • Maximum 10MB"
+          />
 
           {selectedFile && (
-            <div className="mt-4 p-4 bg-muted rounded-lg">
+            <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-lg border border-primary/20 animate-scale-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <ImageIcon className="h-5 w-5" />
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                  </div>
                   <div>
                     <p className="font-medium">{selectedFile.name}</p>
                     <p className="text-sm text-muted-foreground">
                       {formatFileSize(selectedFile.size)}
+                      {imageDimensions && ` • ${imageDimensions.width}×${imageDimensions.height}`}
                     </p>
                   </div>
                 </div>
@@ -467,7 +468,8 @@ const ImageAnalyzer = () => {
                   <Button
                     onClick={analyzeImage}
                     disabled={isAnalyzing}
-                    className="gap-2"
+                    size="lg"
+                    className="gap-2 shadow-lg hover:shadow-xl"
                   >
                     {isAnalyzing ? (
                       <>
@@ -475,14 +477,34 @@ const ImageAnalyzer = () => {
                         Analyzing...
                       </>
                     ) : (
-                      'Analyze Image'
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analyze Image
+                      </>
                     )}
                   </Button>
-                  <Button onClick={reset} variant="outline">
+                  <Button onClick={reset} variant="outline" size="lg" className="gap-2">
+                    <RefreshCw className="h-4 w-4" />
                     Clear
                   </Button>
                 </div>
               </div>
+
+              {isAnalyzing && (
+                <div className="mt-4 space-y-3 animate-slide-up">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      Analyzing image...
+                    </span>
+                    <span className="text-muted-foreground">Please wait</span>
+                  </div>
+                  <Progress value={100} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Running multi-modal detection with 5+ ML models
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -492,16 +514,19 @@ const ImageAnalyzer = () => {
       {imageUrl && (
         <div className="grid gap-6 md:grid-cols-2">
           {/* Image Preview */}
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
               <div className="flex items-center justify-between">
-                <CardTitle>Image Preview</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Eye className="h-5 w-5 text-primary" />
+                  <CardTitle>Image Preview</CardTitle>
+                </div>
                 {result && (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowOverlays(!showOverlays)}
-                    className="gap-2"
+                    className="gap-2 hover:bg-primary/10"
                   >
                     {showOverlays ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     {showOverlays ? 'Hide' : 'Show'} Overlays
@@ -509,8 +534,8 @@ const ImageAnalyzer = () => {
                 )}
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+            <CardContent className="p-0">
+              <div className="relative aspect-video bg-gradient-to-br from-muted to-muted/50 overflow-hidden">
                 <img
                   src={imageUrl}
                   alt="Preview"
@@ -531,93 +556,130 @@ const ImageAnalyzer = () => {
           </Card>
 
           {/* Results */}
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
               <div className="flex items-center justify-between">
-                <CardTitle>Analysis Results</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <CardTitle>Analysis Results</CardTitle>
+                </div>
                 {result && (
                   <Button
                     onClick={exportReport}
                     variant="outline"
                     size="sm"
-                    className="gap-2"
+                    className="gap-2 hover:bg-primary/10"
                   >
                     <Download className="h-4 w-4" />
-                    Export Report
+                    Export
                   </Button>
                 )}
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {result ? (
-                <div className="space-y-4">
-                  {/* Status */}
-                  <div className="flex items-center gap-3">
-                    {result.isDeepfake ? (
-                      <>
-                        <AlertCircle className="h-8 w-8 text-red-500" />
-                        <div>
-                          <Badge variant="destructive" className="text-lg px-3 py-1">
-                            DEEPFAKE DETECTED
-                          </Badge>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-8 w-8 text-green-500" />
-                        <div>
-                          <Badge className="text-lg px-3 py-1">
-                            AUTHENTIC
-                          </Badge>
-                        </div>
-                      </>
-                    )}
+                <div className="space-y-6 animate-scale-in">
+                  {/* Status Badge - Enhanced */}
+                  <div className={`p-6 rounded-lg border-2 ${
+                    result.isDeepfake 
+                      ? 'bg-red-500/10 border-red-500/50 shadow-lg shadow-red-500/20' 
+                      : 'bg-green-500/10 border-green-500/50 shadow-lg shadow-green-500/20'
+                  } transition-all duration-300`}>
+                    <div className="flex items-center gap-4">
+                      {result.isDeepfake ? (
+                        <>
+                          <div className="p-3 rounded-full bg-red-500/20 animate-pulse-glow">
+                            <AlertCircle className="h-8 w-8 text-red-500" />
+                          </div>
+                          <div className="flex-1">
+                            <Badge variant="destructive" className="text-base px-4 py-1.5 shadow-lg">
+                              ⚠️ DEEPFAKE DETECTED
+                            </Badge>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              This image shows signs of manipulation
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-3 rounded-full bg-green-500/20">
+                            <CheckCircle className="h-8 w-8 text-green-500" />
+                          </div>
+                          <div className="flex-1">
+                            <Badge className="text-base px-4 py-1.5 bg-green-500 hover:bg-green-600 shadow-lg">
+                              ✓ AUTHENTIC
+                            </Badge>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              No signs of manipulation detected
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Confidence */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Confidence</span>
-                      <span className="font-medium">
+                  {/* Confidence - Enhanced */}
+                  <div className="space-y-3 p-4 rounded-lg bg-muted/50">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Confidence Score</span>
+                      <span className="text-2xl font-bold text-primary">
                         {(result.confidence * 100).toFixed(1)}%
                       </span>
                     </div>
                     <Progress
                       value={result.confidence * 100}
-                      className="h-2"
+                      className="h-3"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Based on analysis from {result.modelsUsed?.length || 5}+ ML models
+                    </p>
                   </div>
 
-                  {/* Processing Time */}
-                  <div className="text-sm text-muted-foreground">
-                    Processing time: {processingTime}ms
+                  {/* Processing Time - Enhanced */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
+                    <span className="text-sm text-muted-foreground">Processing Time</span>
+                    <span className="text-sm font-medium">{processingTime}ms</span>
                   </div>
 
-                  {/* Score Breakdown */}
+                  {/* Score Breakdown - Enhanced */}
                   {result.scores && Object.keys(result.scores).length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Score Breakdown</h4>
-                      {Object.entries(result.scores).map(([key, value]) => (
-                        value !== undefined && (
-                          <div key={key} className="flex justify-between text-sm">
-                            <span className="capitalize">
-                              {key.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                            <span>{(value * 100).toFixed(1)}%</span>
-                          </div>
-                        )
-                      ))}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-primary" />
+                        Score Breakdown
+                      </h4>
+                      <div className="space-y-2">
+                        {Object.entries(result.scores).map(([key, value]) => (
+                          value !== undefined && (
+                            <div key={key} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="capitalize text-muted-foreground">
+                                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                                </span>
+                                <span className="font-medium">{(value * 100).toFixed(1)}%</span>
+                              </div>
+                              <Progress value={value * 100} className="h-1.5" />
+                            </div>
+                          )
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Anomalies */}
+                  {/* Anomalies - Enhanced */}
                   {result.anomalies.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Detected Anomalies</h4>
-                      <ul className="space-y-1">
+                    <div className="space-y-3 p-4 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                      <h4 className="font-semibold text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                        <AlertCircle className="h-4 w-4" />
+                        Detected Anomalies
+                      </h4>
+                      <ul className="space-y-2">
                         {result.anomalies.map((anomaly, index) => (
-                          <li key={index} className="text-sm text-muted-foreground">
-                            • {anomaly.replace(/_/g, ' ')}
+                          <li key={index} className="text-sm flex items-start gap-2">
+                            <span className="text-orange-500 mt-0.5">•</span>
+                            <span className="text-muted-foreground capitalize">
+                              {anomaly.replace(/_/g, ' ')}
+                            </span>
                           </li>
                         ))}
                       </ul>

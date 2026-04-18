@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Video, VideoOff, RefreshCw, AlertCircle, CheckCircle, Download } from 'lucide-react';
+import { Video, VideoOff, RefreshCw, AlertCircle, CheckCircle, Download, Sparkles, Eye } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 
@@ -402,11 +402,14 @@ const WebcamDetector = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       {/* Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Live Webcam Detection</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <CardTitle>Live Webcam Detection</CardTitle>
+          </div>
           <CardDescription>
             Real-time deepfake detection using your webcam
           </CardDescription>
@@ -415,12 +418,12 @@ const WebcamDetector = () => {
           {/* Main Controls */}
           <div className="flex flex-wrap gap-3">
             {!isActive ? (
-              <Button onClick={startWebcam} className="gap-2">
+              <Button onClick={startWebcam} size="lg" className="gap-2 shadow-lg hover:shadow-xl">
                 <Video className="h-4 w-4" />
                 Start Webcam
               </Button>
             ) : (
-              <Button onClick={stopWebcam} variant="destructive" className="gap-2">
+              <Button onClick={stopWebcam} variant="destructive" size="lg" className="gap-2 shadow-lg hover:shadow-xl">
                 <VideoOff className="h-4 w-4" />
                 Stop Webcam
               </Button>
@@ -430,6 +433,7 @@ const WebcamDetector = () => {
               onClick={captureSnapshot}
               disabled={!isActive || !currentResult}
               variant="outline"
+              size="lg"
               className="gap-2"
             >
               <RefreshCw className="h-4 w-4" />
@@ -440,6 +444,7 @@ const WebcamDetector = () => {
               onClick={exportReport}
               disabled={!currentResult}
               variant="outline"
+              size="lg"
               className="gap-2"
             >
               <Download className="h-4 w-4" />
@@ -461,9 +466,15 @@ const WebcamDetector = () => {
 
           {/* Stats */}
           {isActive && (
-            <div className="flex gap-4 text-sm text-muted-foreground">
-              <span>FPS: {fps}</span>
-              <span>Detections: {detectionCount}</span>
+            <div className="flex gap-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-sm font-medium">FPS: {fps}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-3 w-3 text-primary" />
+                <span className="text-sm font-medium">Detections: {detectionCount}</span>
+              </div>
             </div>
           )}
         </CardContent>
@@ -471,9 +482,12 @@ const WebcamDetector = () => {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Video Display */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Feed</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+            <div className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" />
+              <CardTitle>Live Feed</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
@@ -501,64 +515,94 @@ const WebcamDetector = () => {
         </Card>
 
         {/* Results Display */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Detection Results</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <CardTitle>Detection Results</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             {currentResult ? (
-              <div className="space-y-4">
-                {/* Status Badge */}
-                <div className="flex items-center gap-3">
-                  {currentResult.isDeepfake ? (
-                    <>
-                      <AlertCircle className="h-8 w-8 text-red-500" />
-                      <div>
-                        <Badge variant="destructive" className="text-lg px-3 py-1">
-                          DEEPFAKE DETECTED
-                        </Badge>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-8 w-8 text-green-500" />
-                      <div>
-                        <Badge className="text-lg px-3 py-1">
-                          AUTHENTIC
-                        </Badge>
-                      </div>
-                    </>
-                  )}
+              <div className="space-y-6 animate-scale-in">
+                {/* Status Badge - Enhanced */}
+                <div className={`p-6 rounded-lg border-2 ${
+                  currentResult.isDeepfake 
+                    ? 'bg-red-500/10 border-red-500/50 shadow-lg shadow-red-500/20' 
+                    : 'bg-green-500/10 border-green-500/50 shadow-lg shadow-green-500/20'
+                } transition-all duration-300`}>
+                  <div className="flex items-center gap-4">
+                    {currentResult.isDeepfake ? (
+                      <>
+                        <div className="p-3 rounded-full bg-red-500/20 animate-pulse-glow">
+                          <AlertCircle className="h-8 w-8 text-red-500" />
+                        </div>
+                        <div className="flex-1">
+                          <Badge variant="destructive" className="text-base px-4 py-1.5 shadow-lg">
+                            ⚠️ DEEPFAKE DETECTED
+                          </Badge>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Live feed shows manipulation signs
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-3 rounded-full bg-green-500/20">
+                          <CheckCircle className="h-8 w-8 text-green-500" />
+                        </div>
+                        <div className="flex-1">
+                          <Badge className="text-base px-4 py-1.5 bg-green-500 hover:bg-green-600 shadow-lg">
+                            ✓ AUTHENTIC
+                          </Badge>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            No manipulation detected
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                {/* Confidence Score */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Confidence</span>
-                    <span className="font-medium">
+                {/* Confidence Score - Enhanced */}
+                <div className="space-y-3 p-4 rounded-lg bg-muted/50">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Confidence Score</span>
+                    <span className="text-2xl font-bold text-primary">
                       {(currentResult.confidence * 100).toFixed(1)}%
                     </span>
                   </div>
                   <Progress
                     value={currentResult.confidence * 100}
-                    className="h-2"
+                    className="h-3"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Real-time analysis with {detectionCount} detections
+                  </p>
                 </div>
 
-                {/* Scores Breakdown */}
+                {/* Scores Breakdown - Enhanced */}
                 {currentResult.scores && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Score Breakdown</h4>
-                    {Object.entries(currentResult.scores).map(([key, value]) => (
-                      value !== undefined && (
-                        <div key={key} className="flex justify-between text-sm">
-                          <span className="capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                          </span>
-                          <span>{(value * 100).toFixed(1)}%</span>
-                        </div>
-                      )
-                    ))}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <div className="h-1 w-1 rounded-full bg-primary" />
+                      Score Breakdown
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(currentResult.scores).map(([key, value]) => (
+                        value !== undefined && (
+                          <div key={key} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="capitalize text-muted-foreground">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}
+                              </span>
+                              <span className="font-medium">{(value * 100).toFixed(1)}%</span>
+                            </div>
+                            <Progress value={value * 100} className="h-1.5" />
+                          </div>
+                        )
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -574,14 +618,20 @@ const WebcamDetector = () => {
                   </div>
                 )}
 
-                {/* Anomalies */}
+                {/* Anomalies - Enhanced */}
                 {currentResult.anomalies.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Detected Anomalies</h4>
-                    <ul className="space-y-1">
+                  <div className="space-y-3 p-4 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                    <h4 className="font-semibold text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                      <AlertCircle className="h-4 w-4" />
+                      Detected Anomalies
+                    </h4>
+                    <ul className="space-y-2">
                       {currentResult.anomalies.map((anomaly, index) => (
-                        <li key={index} className="text-sm text-muted-foreground">
-                          • {anomaly.replace(/_/g, ' ')}
+                        <li key={index} className="text-sm flex items-start gap-2">
+                          <span className="text-orange-500 mt-0.5">•</span>
+                          <span className="text-muted-foreground capitalize">
+                            {anomaly.replace(/_/g, ' ')}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -624,8 +674,9 @@ const WebcamDetector = () => {
                 )}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No face detected</p>
+              <div className="text-center py-12 text-muted-foreground animate-slide-up">
+                <Video className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="font-medium">No face detected</p>
                 <p className="text-sm mt-2">
                   Position your face in the camera view
                 </p>
