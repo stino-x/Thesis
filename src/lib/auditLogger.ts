@@ -300,6 +300,23 @@ class AuditLoggerService {
     link.click();
     document.body.removeChild(link);
   }
+
+  /**
+   * Download audit logs as JSON file
+   */
+  async downloadLogsAsJSON(filters?: AuditLogFilters, filename: string = 'audit_logs.json'): Promise<void> {
+    const logs = await this.getLogs(filters, 10000);
+    const json = JSON.stringify(logs, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 }
 
 // Export a singleton instance
