@@ -52,7 +52,9 @@ export class PPGAnalyzer {
   ];
 
   /**
-   * Analyze PPG signal from face mesh and canvas
+   * Analyze PPG signal from face mesh and canvas.
+   * Requires at least minSamples frames — returns low-confidence result
+   * for single images (PPG is meaningless without temporal data).
    */
   async analyzePPG(
     faceMesh: NormalizedLandmarkList,
@@ -85,7 +87,8 @@ export class PPGAnalyzer {
       }
     }
 
-    // Need enough samples for analysis
+    // Need enough samples for analysis — single images always fail this check
+    // which is correct: PPG requires temporal data to detect a pulse signal
     const avgHistoryLength = Array.from(this.rgbHistory.values())
       .reduce((sum, hist) => sum + hist.length, 0) / this.skinRegions.length;
 
