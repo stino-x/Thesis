@@ -27,3 +27,39 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Model weights (large binary files — download via scripts)
+# public/models/xception/
+# public/models/xception-onnx/
+# public/models/efficientnet/
+# public/models/cnndetector/
+# public/models/onnx/
+scripts/cache/
+backend/weights/
+
+# Python virtualenvs (any name/location)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.venv*/
+venv/
+venv*/
+scripts/.venv*/
+backend/.venv*/
+
+# Python build artifacts
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Report (generated — not for version control)
+DETECTION_SYSTEM_REPORT.md
+
+# OS
+Thumbs.db
