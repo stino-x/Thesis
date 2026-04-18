@@ -22,10 +22,15 @@ import { loadImage, validateImageFile, formatFileSize } from '@/utils/videoUtils
 import { drawImageScaled, drawBoundingBox, drawLandmarks, drawConfidenceOverlay, createHeatmap } from '@/utils/canvasUtils';
 import { waitForOpenCV, canvasToMat, preprocessForML, deleteMat } from '@/lib/opencv';
 import { getFaceDetector, getFaceMesh } from '@/lib/mediapipe';
-import { getDeepfakeDetector, canvasToTensor } from '@/lib/tensorflow';
+import { getDeepfakeDetector } from '@/lib/tensorflow';
 import { performELA, type ELAResult } from '@/lib/forensics/elaAnalyzer';
+import { detectFileWithUnivFD, type UnivFDResult } from '@/lib/api/univfdClient';
+import { applyDefensiveTransforms } from '@/lib/defense/defensiveTransforms';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
+import { ConfidenceWarning } from '@/components/ConfidenceWarning';
+import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
+import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 const ImageAnalyzer = () => {
@@ -37,10 +42,13 @@ const ImageAnalyzer = () => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
+  const [enhancedResult, setEnhancedResult] = useState<EnhancedDetectionResult | null>(null);
   const [elaResult, setElaResult] = useState<ELAResult | null>(null);
   const [processingTime, setProcessingTime] = useState<number>(0);
   const [showOverlays, setShowOverlays] = useState(true);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [univfdResult, setUnivfdResult] = useState<UnivFDResult | null>(null);
 
   const { logDetection, getTimingHelper } = useAuditLog();
   const { settings } = useSettings();
@@ -56,9 +64,16 @@ const ImageAnalyzer = () => {
       return;
     }
 
+    // Revoke previous URL to prevent memory leak
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl);
+    }
+
     setSelectedFile(file);
     setImageUrl(URL.createObjectURL(file));
     setResult(null);
+    setElaResult(null);
+    setUnivfdResult(null);
     toast.success('Image loaded successfully');
   };
 
@@ -78,25 +93,66 @@ const ImageAnalyzer = () => {
     setIsAnalyzing(true);
     const timer = getTimingHelper();
 
+    // Import performance monitor
+    const performanceMonitor = (await import('@/lib/performance/performanceMonitor')).default;
+    performanceMonitor.startMark('image-analysis-total');
+
     try {
       const canvas = canvasRef.current;
 
-      // 1. Load image
-      const img = await loadImage(selectedFile);
+      // 1. Load image + wait for OpenCV in parallel
+      performanceMonitor.startMark('image-loading');
+      const [img] = await Promise.all([
+        loadImage(selectedFile),
+        waitForOpenCV(),
+      ]);
       drawImageScaled(canvas, img);
       setImageDimensions({ width: img.width, height: img.height });
+      const loadingTime = performanceMonitor.endMark('image-loading');
 
-      // 2. Wait for OpenCV
-      await waitForOpenCV();
+      // 1.5. Apply defensive transforms if enabled
+      let transformTime = 0;
+      if (settings.enableDefensiveTransforms) {
+        try {
+          performanceMonitor.startMark('defensive-transforms');
+          const transformedCanvas = await applyDefensiveTransforms(canvas, {
+            jpegCompression: settings.jpegQuality,
+            gaussianBlur: settings.gaussianBlur > 0 ? settings.gaussianBlur : undefined,
+            randomCrop: settings.enableRandomCrop,
+            resize: settings.enableResize,
+          });
+          // Copy transformed canvas back
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(transformedCanvas, 0, 0);
+          }
+          transformTime = performanceMonitor.endMark('defensive-transforms');
+        } catch (transformError) {
+          console.warn('⚠️  Defensive transforms failed, using original image:', transformError);
+          toast.warning('Defensive transforms failed, proceeding with original image');
+          // Continue with original canvas
+        }
+      }
 
-      // 3. Preprocess with OpenCV
+      // 2. Preprocess with OpenCV
       const mat = canvasToMat(canvas);
       const processed = preprocessForML(mat, 224);
 
-      // 4. Face Detection
+      // 3. Face Detection + UnivFD + ELA all in parallel (all independent)
+      performanceMonitor.startMark('face-detection');
       const faceDetector = getFaceDetector();
       await faceDetector.waitForInitialization();
-      const faces = await faceDetector.detect(canvas);
+
+      const [faces, univfd, elaData] = await Promise.all([
+        faceDetector.detect(canvas),
+        detectFileWithUnivFD(selectedFile).catch(() => null),
+        performELA(canvas).catch(() => null),
+      ]);
+      const faceDetectionTime = performanceMonitor.endMark('face-detection');
+
+      if (univfd) setUnivfdResult(univfd);
+      if (elaData) setElaResult(elaData);
 
       if (!faces[0]?.detected) {
         toast.warning('No face detected in image');
@@ -105,82 +161,122 @@ const ImageAnalyzer = () => {
           confidence: 0,
           scores: {},
           anomalies: ['no_face_detected'],
+          modelsUsed: [],
         });
         deleteMat(mat);
         deleteMat(processed);
         setIsAnalyzing(false);
+        performanceMonitor.endMark('image-analysis-total');
         return;
       }
 
-      // 5. Face Mesh
+      // 4. Face Mesh (needs face detection result first)
       const faceMesh = getFaceMesh();
       await faceMesh.waitForInitialization();
       const meshResult = await faceMesh.detect(canvas);
 
-      // 6. Multi-Modal Detection
+      // 5. Multi-Modal Detection
+      performanceMonitor.startMark('model-inference');
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity);
 
-      // Prepare image data
       const imageData = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
 
       let detectionResult: DetectionResult;
 
       if (meshResult.detected && meshResult.landmarks) {
-        // Full multi-modal analysis with face mesh
         const eyeLandmarks = faceMesh.getEyeLandmarks(meshResult.landmarks);
         const leftEAR = faceMesh.calculateEyeAspectRatio(eyeLandmarks.leftEye);
         const rightEAR = faceMesh.calculateEyeAspectRatio(eyeLandmarks.rightEye);
 
-        const features = {
-          blinkRate: 0, // Can't measure from single image
-          eyeAspectRatio: (leftEAR + rightEAR) / 2,
-          landmarkJitter: 0,
-          faceSymmetry: 0.8,
-          mouthMovement: 0,
-          headPoseStability: 1,
-        };
-
-        // Multi-modal detection with metadata + visual + PPG
         detectionResult = await detector.detectMultiModal({
           imageData,
-          features,
+          features: {
+            blinkRate: 0,
+            eyeAspectRatio: (leftEAR + rightEAR) / 2,
+            landmarkJitter: 0,
+            faceSymmetry: 0.8,
+            mouthMovement: 0,
+            headPoseStability: 1,
+          },
           faceMesh: meshResult.landmarks,
           canvas,
+          faceBbox: faces[0].boundingBox ?? undefined,
           file: selectedFile,
           timestamp: performance.now(),
+          univfd: univfd ?? undefined,
         });
       } else {
-        // Fallback to visual + metadata only
         detectionResult = await detector.detectMultiModal({
           imageData,
+          canvas,
+          faceBbox: faces[0].boundingBox ?? undefined,
           file: selectedFile,
+          univfd: univfd ?? undefined,
         });
       }
+      const inferenceTime = performanceMonitor.endMark('model-inference');
 
-      // 7. Run ELA forensic analysis
-      let elaData: ELAResult | null = null;
-      try {
-        elaData = await performELA(canvas);
-        setElaResult(elaData);
-        // Merge ELA anomalies into detection result
-        if (elaData.anomalies.length > 0) {
-          detectionResult.anomalies = Array.from(new Set([
-            ...detectionResult.anomalies,
-            ...elaData.anomalies,
-          ]));
-        }
-      } catch (elaError) {
-        console.warn('ELA analysis failed:', elaError);
+      // 6. Merge ELA anomalies into detection result
+      if (elaData?.anomalies.length) {
+        detectionResult.anomalies = Array.from(new Set([
+          ...detectionResult.anomalies,
+          ...elaData.anomalies,
+        ]));
       }
 
       setResult(detectionResult);
       const elapsed = timer.getElapsedMs();
       setProcessingTime(elapsed);
 
-      // 8. Draw overlays on visible overlay canvas
+      // 7. Enhance with research-grade features (if enabled)
+      let calibrationTime = 0;
+      let adversarialTime = 0;
+      let partialDetectionTime = 0;
+
+      if (settings.enableCalibration || settings.enableAdversarialDetection || settings.enablePartialDetection) {
+        performanceMonitor.startMark('research-features');
+        const imageDataForEnhancement = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+        
+        const enhanced = enhanceDetectionResult(
+          detectionResult,
+          imageDataForEnhancement,
+          faces[0].boundingBox,
+          meshResult.detected ? meshResult.landmarks : undefined
+        );
+        
+        setEnhancedResult(enhanced);
+        const researchTime = performanceMonitor.endMark('research-features');
+        
+        // Estimate individual times (rough approximation)
+        if (settings.enableCalibration) calibrationTime = researchTime * 0.2;
+        if (settings.enableAdversarialDetection) adversarialTime = researchTime * 0.3;
+        if (settings.enablePartialDetection) partialDetectionTime = researchTime * 0.5;
+      } else {
+        setEnhancedResult(null);
+      }
+
+      // 8. Draw overlays
+      performanceMonitor.startMark('overlay-drawing');
       drawOverlays(faces, meshResult, detectionResult, elaData);
+      const overlayTime = performanceMonitor.endMark('overlay-drawing');
+
+      const totalTime = performanceMonitor.endMark('image-analysis-total');
+
+      // Record performance metrics
+      performanceMonitor.recordEntry('image-detection', {
+        detectionTime: inferenceTime,
+        modelLoadingTime: loadingTime,
+        faceDetectionTime: faceDetectionTime,
+        calibrationTime,
+        adversarialTime,
+        partialDetectionTime,
+        totalTime,
+        memoryUsage: performanceMonitor.getMemoryUsage(),
+      });
+
+      console.log(`⏱️  Performance breakdown: Load=${loadingTime.toFixed(0)}ms, Transform=${transformTime.toFixed(0)}ms, Face=${faceDetectionTime.toFixed(0)}ms, Inference=${inferenceTime.toFixed(0)}ms, Overlay=${overlayTime.toFixed(0)}ms, Total=${totalTime.toFixed(0)}ms`);
 
       // 9. Log detection
       await logDetection({
@@ -260,16 +356,21 @@ const ImageAnalyzer = () => {
       drawLandmarks(ctx, scaledLandmarks, color, 1);
     }
 
-    // Heatmap
+    // ELA Heatmap
     if (settings.showHeatmap && elaData?.details.suspiciousRegions) {
       createHeatmap(overlay, elaData.details.suspiciousRegions);
+    }
+    
+    // Partial deepfake heatmap (if enabled and available)
+    if (showHeatmap && enhancedResult?.partial?.heatmap) {
+      ctx.putImageData(enhancedResult.partial.heatmap, 0, 0);
     }
 
     // Confidence badge
     if (settings.showConfidenceBadge) {
       drawConfidenceOverlay(ctx, detectionResult.confidence, detectionResult.isDeepfake, 10, 40);
     }
-  }, [imageDimensions, settings]);
+  }, [imageDimensions, settings, showHeatmap, enhancedResult]);
 
   const exportReport = () => {
     if (!result || !selectedFile) return;
@@ -309,6 +410,7 @@ const ImageAnalyzer = () => {
     setImageUrl(null);
     setResult(null);
     setElaResult(null);
+    setUnivfdResult(null);
     setProcessingTime(0);
     setImageDimensions(null);
     if (fileInputRef.current) {
@@ -632,7 +734,49 @@ const ImageAnalyzer = () => {
                         </AccordionContent>
                       </AccordionItem>
                     )}
+                    {univfdResult && univfdResult.available && (
+                      <AccordionItem value="univfd">
+                        <AccordionTrigger className="text-sm font-medium">
+                          CLIP / UnivFD Analysis {!univfdResult.modelLoaded && '(zero-shot)'}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <p><strong>Method:</strong> {univfdResult.method === 'univfd' ? 'UnivFD linear probe' : 'CLIP zero-shot'}</p>
+                            <p><strong>Fake Score:</strong> {(univfdResult.score * 100).toFixed(1)}%</p>
+                            <p><strong>Confidence:</strong> {(univfdResult.confidence * 100).toFixed(1)}%</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Detects: Stable Diffusion, DALL-E, Midjourney, SORA
+                            </p>
+                            {univfdResult.anomalies.length > 0 && (
+                              <ul className="space-y-1 mt-1">
+                                {univfdResult.anomalies.map((a, i) => (
+                                  <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )}
                   </Accordion>
+
+                  {/* Confidence & Adversarial Warnings */}
+                  <ConfidenceWarning
+                    confidence={result.confidence}
+                    isDeepfake={result.isDeepfake}
+                    modelsUsed={result.modelsUsed || []}
+                  />
+
+                  {/* Enhanced Research-Grade Results */}
+                  {enhancedResult && (settings.enableCalibration || settings.enableAdversarialDetection || settings.enablePartialDetection) && (
+                    <div className="pt-4 border-t">
+                      <EnhancedResultsPanel
+                        result={enhancedResult}
+                        showHeatmap={showHeatmap}
+                        onHeatmapToggle={() => setShowHeatmap(!showHeatmap)}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : isAnalyzing ? (
                 <div className="text-center py-8">

@@ -24,8 +24,11 @@ import { getWebcamStream, stopMediaStream } from '@/utils/videoUtils';
 import { drawBoundingBox, drawLandmarks, drawConfidenceOverlay } from '@/utils/canvasUtils';
 import { getFaceDetector, getFaceMesh, FeatureAggregator } from '@/lib/mediapipe';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
+import { detectWithUnivFD } from '@/lib/api/univfdClient';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
+import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
+import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 const WebcamDetector = () => {
@@ -36,15 +39,19 @@ const WebcamDetector = () => {
 
   const [isActive, setIsActive] = useState(false);
   const [currentResult, setCurrentResult] = useState<DetectionResult | null>(null);
+  const [enhancedResult, setEnhancedResult] = useState<EnhancedDetectionResult | null>(null);
   const [fps, setFps] = useState(0);
   const [continuousMode, setContinuousMode] = useState(true);
   const [detectionCount, setDetectionCount] = useState(0);
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const { logDetection, getTimingHelper } = useAuditLog();
   const { settings } = useSettings();
   const featureAggregator = useRef(new FeatureAggregator());
   const lastProcessTime = useRef(Date.now());
+  const lastUnivfdTime = useRef(0); // throttle CLIP to once per 10s
   const frameCount = useRef(0);
+  const isProcessingFrame = useRef(false); // guard against queued frames
 
   useEffect(() => {
     return () => {
@@ -97,7 +104,7 @@ const WebcamDetector = () => {
     processFrame();
   };
 
-  const processFrame = async () => {
+  const processFrame = () => {
     if (!videoRef.current || !canvasRef.current || !isActive) {
       return;
     }
@@ -122,15 +129,21 @@ const WebcamDetector = () => {
     const interval = intervals[settings.processingSpeed] || 100;
     const now = Date.now();
     if (now - lastProcessTime.current >= interval) {
-      await detectInFrame(canvas, ctx);
-      lastProcessTime.current = now;
+      if (!isProcessingFrame.current) {
+        isProcessingFrame.current = true;
+        detectInFrame(canvas, ctx).finally(() => {
+          isProcessingFrame.current = false;
+        });
+      }
 
-      // Calculate FPS
+      // Calculate FPS before updating lastProcessTime
       frameCount.current++;
       if (frameCount.current % 10 === 0) {
-        const elapsed = (now - lastProcessTime.current + 1000) / 1000;
-        setFps(Math.round(10 / elapsed));
+        const elapsed = (now - lastProcessTime.current) / 1000;
+        if (elapsed > 0) setFps(Math.round(10 / elapsed));
       }
+
+      lastProcessTime.current = now;
     }
 
     // Continue processing
@@ -143,10 +156,31 @@ const WebcamDetector = () => {
     const timer = getTimingHelper();
 
     try {
+      // Apply defensive transforms if enabled
+      let processedCanvas = canvas;
+      if (settings.enableDefensiveTransforms) {
+        try {
+          const { applyDefensiveTransforms } = await import('@/lib/defense/defensiveTransforms');
+          const transformedCanvas = await applyDefensiveTransforms(canvas, {
+            jpegCompression: settings.jpegQuality,
+            gaussianBlur: settings.gaussianBlur > 0 ? settings.gaussianBlur : undefined,
+            randomCrop: settings.enableRandomCrop,
+            resize: settings.enableResize,
+          });
+          processedCanvas = transformedCanvas;
+        } catch (transformError) {
+          console.warn('⚠️  Defensive transforms failed, using original frame:', transformError);
+          // Fall back to original canvas
+        }
+      }
+
       // 1. Face Detection
+      console.log('🔍 Starting face detection...');
       const faceDetector = getFaceDetector();
       await faceDetector.waitForInitialization();
       const faces = await faceDetector.detect(videoRef.current!);
+
+      console.log('👤 Faces detected:', faces.length, faces[0]?.detected ? 'Face found' : 'No face');
 
       if (!faces[0]?.detected) {
         setCurrentResult(null);
@@ -154,16 +188,34 @@ const WebcamDetector = () => {
       }
 
       const face = faces[0];
+      console.log('📊 Face confidence:', face.score);
+
+      // Validate bounding box
+      const { isValidBoundingBox, sanitizeBoundingBox } = await import('@/lib/utils/validation');
+      let validBbox = face.boundingBox;
+      if (validBbox && !isValidBoundingBox(validBbox)) {
+        console.warn('⚠️  Invalid bounding box detected, attempting to sanitize');
+        validBbox = sanitizeBoundingBox(validBbox);
+        if (!validBbox) {
+          console.error('❌ Could not sanitize bounding box, skipping frame');
+          setCurrentResult(null);
+          return;
+        }
+      }
 
       // 2. Face Mesh
+      console.log('🕸️ Getting face mesh...');
       const faceMesh = getFaceMesh();
       await faceMesh.waitForInitialization();
       const meshResult = await faceMesh.detect(videoRef.current!);
 
       if (!meshResult.detected || !meshResult.landmarks) {
+        console.log('❌ Face mesh failed');
         setCurrentResult(null);
         return;
       }
+
+      console.log('✅ Face mesh detected, landmarks:', meshResult.landmarks.length);
 
       // 3. Extract Features
       const eyeLandmarks = faceMesh.getEyeLandmarks(meshResult.landmarks);
@@ -174,30 +226,56 @@ const WebcamDetector = () => {
       const features = featureAggregator.current.getFeatures(meshResult.landmarks);
 
       // 4. Multi-Modal Classification
+      console.log('🤖 Running deepfake detection...');
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity);
       
-      // Get image data for multi-modal
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      // Get image data for multi-modal (use processed canvas)
+      const imageData = processedCanvas.getContext('2d')!.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
       
       // Use multi-modal detection with PPG
       const result = await detector.detectMultiModal({
         imageData,
         features,
         faceMesh: meshResult.landmarks,
-        canvas,
+        canvas: processedCanvas,
+        faceBbox: validBbox ?? undefined,
         timestamp: performance.now(),
+        isVideoFrame: true,
+        univfd: await (async () => {
+          const now = Date.now();
+          if (now - lastUnivfdTime.current > 10000) {
+            lastUnivfdTime.current = now;
+            return detectWithUnivFD(processedCanvas, 'webcam_frame.jpg').catch(() => null) as Promise<Parameters<typeof detector.detectMultiModal>[0]['univfd']>;
+          }
+          return undefined;
+        })(),
       });
+
+      console.log('🎯 Detection result:', result.isDeepfake ? 'DEEPFAKE' : 'REAL', 'confidence:', result.confidence);
 
       setCurrentResult(result);
       setDetectionCount(prev => prev + 1);
 
-      // 5. Draw Overlay (respects individual settings)
+      // 4.5. Enhance with research-grade features (if enabled)
+      if (settings.enableCalibration || settings.enableAdversarialDetection || settings.enablePartialDetection) {
+        const enhanced = enhanceDetectionResult(
+          result,
+          imageData,
+          validBbox,
+          meshResult.landmarks
+        );
+        setEnhancedResult(enhanced);
+      } else {
+        setEnhancedResult(null);
+      }
+
+      // 5. Draw Overlay (respects individual settings) - draw on original canvas for display
       const color = result.isDeepfake ? '#ff0000' : '#00ff00';
 
-      if (settings.showBoundingBoxes && face.boundingBox) {
-        const bbox = face.boundingBox;
+      if (settings.showBoundingBoxes && validBbox) {
+        const bbox = validBbox;
         drawBoundingBox(
           ctx,
           {
@@ -222,6 +300,13 @@ const WebcamDetector = () => {
         drawConfidenceOverlay(ctx, result.confidence, result.isDeepfake, 10, 40);
       }
 
+      // Draw partial deepfake heatmap if enabled
+      if (showHeatmap && enhancedResult?.partial?.heatmap) {
+        ctx.globalAlpha = 0.5;
+        ctx.putImageData(enhancedResult.partial.heatmap, 0, 0);
+        ctx.globalAlpha = 1.0;
+      }
+
       // 6. Log Detection (every 10th frame to avoid spam)
       if (detectionCount % 10 === 0) {
         await logDetection({
@@ -242,7 +327,8 @@ const WebcamDetector = () => {
         });
       }
     } catch (error) {
-      console.error('Detection error:', error);
+      console.error('❌ Detection error:', error);
+      console.error('Error details:', error.message, error.stack);
     }
   };
 
@@ -476,6 +562,18 @@ const WebcamDetector = () => {
                   </div>
                 )}
 
+                {/* Models Used */}
+                {currentResult.modelsUsed?.length > 0 && (
+                  <div className="space-y-1">
+                    <h4 className="font-medium text-sm">Models Active</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {currentResult.modelsUsed.map((m, i) => (
+                        <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded-full">{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Anomalies */}
                 {currentResult.anomalies.length > 0 && (
                   <div className="space-y-2">
@@ -531,6 +629,17 @@ const WebcamDetector = () => {
                 <p className="text-sm mt-2">
                   Position your face in the camera view
                 </p>
+              </div>
+            )}
+
+            {/* Enhanced Research-Grade Results */}
+            {enhancedResult && (settings.enableCalibration || settings.enableAdversarialDetection || settings.enablePartialDetection) && (
+              <div className="pt-4 border-t">
+                <EnhancedResultsPanel
+                  result={enhancedResult}
+                  showHeatmap={showHeatmap}
+                  onHeatmapToggle={() => setShowHeatmap(!showHeatmap)}
+                />
               </div>
             )}
           </CardContent>

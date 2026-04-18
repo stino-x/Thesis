@@ -22,8 +22,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 
 import { loadVideo, extractFrames, validateVideoFile, formatFileSize, formatDuration } from '@/utils/videoUtils';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
+import { detectWithUnivFD } from '@/lib/api/univfdClient';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
+import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
+import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 interface FrameResult {
@@ -51,10 +54,12 @@ const VideoAnalyzer = () => {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [frameResults, setFrameResults] = useState<FrameResult[]>([]);
   const [overallResult, setOverallResult] = useState<DetectionResult | null>(null);
+  const [enhancedResult, setEnhancedResult] = useState<EnhancedDetectionResult | null>(null);
   const [suspiciousSegments, setSuspiciousSegments] = useState<SuspiciousSegment[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [processingTime, setProcessingTime] = useState<number>(0);
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const { logDetection, getTimingHelper } = useAuditLog();
   const { settings } = useSettings();
@@ -124,6 +129,10 @@ const VideoAnalyzer = () => {
     setAnalysisProgress(0);
     const timer = getTimingHelper();
 
+    // Reset temporal analyzer so a new video starts with a clean window
+    const { getTemporalAnalyzer } = await import('@/lib/temporal/temporalConsistency');
+    getTemporalAnalyzer().reset();
+
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -139,10 +148,16 @@ const VideoAnalyzer = () => {
         console.warn('⚠️ Could not extract audio from video (may have no audio track):', audioError);
       }
 
-      // Extract frames based on processingSpeed setting
+      // Extract frames + run UnivFD on first frame in parallel
       const intervalMap: Record<string, number> = { fast: 1.0, balanced: 0.5, accurate: 0.25 };
       const frameInterval = intervalMap[settings.processingSpeed] || 0.5;
-      const frames = await extractFrames(video, canvas, frameInterval);
+
+      const [frames, univfdResult] = await Promise.all([
+        extractFrames(video, canvas, frameInterval),
+        // UnivFD runs once on the whole file — no need to repeat per frame
+        detectWithUnivFD(canvas, selectedFile.name).catch(() => null),
+      ]);
+      const univfd = univfdResult ?? undefined;
 
       if (frames.length === 0) {
         toast.error('No frames could be extracted from video');
@@ -155,42 +170,71 @@ const VideoAnalyzer = () => {
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity); // Lower sensitivity = higher threshold
 
-      // Analyze frames with multi-modal detection
+      // Analyze frames with multi-modal detection — process in batches of 4
       const results: FrameResult[] = [];
       const { getFaceMesh } = await import('@/lib/mediapipe');
       const faceMesh = getFaceMesh();
       await faceMesh.waitForInitialization();
 
-      for (let i = 0; i < frames.length; i++) {
-        const frame = frames[i];
-        
-        // Draw frame to canvas
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(frame.imageData, 0, 0, canvas.width, canvas.height);
+      const BATCH_SIZE = 4;
+      for (let batchStart = 0; batchStart < frames.length; batchStart += BATCH_SIZE) {
+        const batch = frames.slice(batchStart, batchStart + BATCH_SIZE);
 
-        // Get image data
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const batchResults = await Promise.all(batch.map(async (frame, batchIdx) => {
+          const i = batchStart + batchIdx;
+          // Each batch item needs its own canvas to avoid race conditions
+          const batchCanvas = document.createElement('canvas');
+          batchCanvas.width = canvas.width;
+          batchCanvas.height = canvas.height;
+          const batchCtx = batchCanvas.getContext('2d')!;
+          batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
 
-        // Face mesh detection for multi-modal
-        const meshResult = await faceMesh.detect(canvas);
+          // Apply defensive transforms if enabled
+          let processedCanvas = batchCanvas;
+          if (settings.enableDefensiveTransforms) {
+            try {
+              const { applyDefensiveTransforms } = await import('@/lib/defense/defensiveTransforms');
+              const transformedCanvas = await applyDefensiveTransforms(batchCanvas, {
+                jpegCompression: settings.jpegQuality,
+                gaussianBlur: settings.gaussianBlur > 0 ? settings.gaussianBlur : undefined,
+                randomCrop: settings.enableRandomCrop,
+                resize: settings.enableResize,
+              });
+              processedCanvas = transformedCanvas;
+            } catch (transformError) {
+              console.warn('⚠️  Defensive transforms failed for frame, using original:', transformError);
+              // Fall back to original canvas
+            }
+          }
 
-        // Multi-modal detection
-        const result = await detector.detectMultiModal({
-          imageData,
-          faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
-          canvas,
-          audioBuffer: audioBuffer ?? undefined,
-          file: selectedFile,
-          timestamp: frame.timestamp,
-        });
+          const imageData = processedCanvas.getContext('2d')!.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
+          const meshResult = await faceMesh.detect(processedCanvas);
 
-        results.push({
-          frameIndex: i,
-          timestamp: frame.timestamp,
-          result,
-        });
+          const result = await detector.detectMultiModal({
+            imageData,
+            faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
+            canvas: processedCanvas,
+            faceBbox: meshResult.detected && meshResult.landmarks
+              ? (() => {
+                  const xs = meshResult.landmarks.map(l => l.x);
+                  const ys = meshResult.landmarks.map(l => l.y);
+                  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+                  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+                  return { xMin, yMin, width: xMax - xMin, height: yMax - yMin };
+                })()
+              : undefined,
+            audioBuffer: audioBuffer ?? undefined,
+            file: selectedFile,
+            timestamp: frame.timestamp,
+            isVideoFrame: true,
+            univfd: i === 0 ? univfd : undefined,
+          });
 
-        setAnalysisProgress(((i + 1) / frames.length) * 100);
+          return { frameIndex: i, timestamp: frame.timestamp, result };
+        }));
+
+        results.push(...batchResults);
+        setAnalysisProgress(((batchStart + batch.length) / frames.length) * 100);
       }
 
       setFrameResults(results);
@@ -223,10 +267,35 @@ const VideoAnalyzer = () => {
         confidence: avgConfidence,
         scores: aggregatedScores,
         anomalies: allAnomalies,
+        modelsUsed: Array.from(new Set(results.flatMap(r => r.result.modelsUsed))),
         multiModalDetails: lastFrameDetails,
       };
 
       setOverallResult(overall);
+
+      // Enhance with research-grade features (if enabled) - use last frame's data
+      if (settings.enableCalibration || settings.enableAdversarialDetection || settings.enablePartialDetection) {
+        const lastFrame = results[results.length - 1];
+        if (lastFrame) {
+          // Create a temporary canvas with the last frame for enhancement
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = canvas.width;
+          tempCanvas.height = canvas.height;
+          const tempCtx = tempCanvas.getContext('2d')!;
+          tempCtx.drawImage(frames[frames.length - 1].imageData, 0, 0);
+          const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+          
+          const enhanced = enhanceDetectionResult(
+            overall,
+            imageData,
+            lastFrame.result.multiModalDetails?.metadata?.details.fileInfo ? undefined : undefined,
+            undefined
+          );
+          setEnhancedResult(enhanced);
+        }
+      } else {
+        setEnhancedResult(null);
+      }
 
       // Find suspicious segments
       const segments = findSuspiciousSegments(results);
@@ -806,6 +875,17 @@ const VideoAnalyzer = () => {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Analyze the video to see results</p>
+                </div>
+              )}
+
+              {/* Enhanced Research-Grade Results */}
+              {enhancedResult && (settings.enableCalibration || settings.enableAdversarialDetection || settings.enablePartialDetection) && (
+                <div className="pt-4 border-t">
+                  <EnhancedResultsPanel
+                    result={enhancedResult}
+                    showHeatmap={showHeatmap}
+                    onHeatmapToggle={() => setShowHeatmap(!showHeatmap)}
+                  />
                 </div>
               )}
             </CardContent>

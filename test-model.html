@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Model Loading Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+</head>
+<body>
+    <h1>Testing MesoNet Model Loading</h1>
+    <div id="status">Loading...</div>
+    <div id="details"></div>
+
+    <script>
+        async function testModelLoading() {
+            const statusDiv = document.getElementById('status');
+            const detailsDiv = document.getElementById('details');
+            
+            try {
+                statusDiv.innerHTML = 'Initializing TensorFlow.js...';
+                await tf.ready();
+                detailsDiv.innerHTML += '<p>✅ TensorFlow.js ready</p>';
+                
+                statusDiv.innerHTML = 'Loading MesoNet model...';
+                const model = await tf.loadLayersModel('/models/mesonet/model.json');
+                
+                statusDiv.innerHTML = '✅ Model loaded successfully!';
+                detailsDiv.innerHTML += `<p>✅ MesoNet loaded</p>`;
+                detailsDiv.innerHTML += `<p>Model inputs: ${JSON.stringify(model.inputs.map(i => i.shape))}</p>`;
+                detailsDiv.innerHTML += `<p>Model outputs: ${JSON.stringify(model.outputs.map(o => o.shape))}</p>`;
+                
+                // Test inference with dummy data
+                statusDiv.innerHTML = 'Testing inference...';
+                const dummyInput = tf.randomNormal([1, 256, 256, 3]);
+                const prediction = model.predict(dummyInput);
+                const result = await prediction.data();
+                
+                statusDiv.innerHTML = '✅ Everything working!';
+                detailsDiv.innerHTML += `<p>✅ Test prediction: ${result[0]}</p>`;
+                
+                // Cleanup
+                dummyInput.dispose();
+                prediction.dispose();
+                
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Error occurred';
+                detailsDiv.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+                console.error('Model loading error:', error);
+            }
+        }
+        
+        testModelLoading();
+    </script>
+</body>
+</html>

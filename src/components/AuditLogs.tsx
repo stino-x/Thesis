@@ -47,14 +47,22 @@ const AuditLogs = () => {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'csv' | 'json') => {
     try {
       toast.info('Preparing export...');
-      await auditLogger.downloadLogsAsCSV(
-        { ...filters, user_id: user?.id },
-        `audit_logs_${new Date().toISOString().split('T')[0]}.csv`
-      );
-      toast.success('Audit logs exported successfully');
+      const date = new Date().toISOString().split('T')[0];
+      if (format === 'csv') {
+        await auditLogger.downloadLogsAsCSV(
+          { ...filters, user_id: user?.id },
+          `audit_logs_${date}.csv`
+        );
+      } else {
+        await auditLogger.downloadLogsAsJSON(
+          { ...filters, user_id: user?.id },
+          `audit_logs_${date}.json`
+        );
+      }
+      toast.success(`Audit logs exported as ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Error exporting logs:', error);
       toast.error('Failed to export audit logs');
@@ -200,10 +208,18 @@ const AuditLogs = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleExport}
+                onClick={() => handleExport('csv')}
               >
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport('json')}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export JSON
               </Button>
             </div>
           </div>
