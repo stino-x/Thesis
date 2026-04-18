@@ -28,12 +28,12 @@ dist-ssr
 *.sln
 *.sw?
 
-# Model weights (large binary files — download via scripts)
+# Model weights (large binary files — hosted on Hugging Face)
 # public/models/xception/
 # public/models/xception-onnx/
 # public/models/efficientnet/
 # public/models/cnndetector/
-# public/models/onnx/
+public/models/onnx/
 scripts/cache/
 backend/weights/
 
