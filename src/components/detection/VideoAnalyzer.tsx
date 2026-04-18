@@ -186,7 +186,15 @@ const VideoAnalyzer = () => {
           imageData,
           faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
           canvas,
-          faceBbox: meshResult.detected ? meshResult.boundingBox : undefined,
+          faceBbox: meshResult.detected && meshResult.landmarks
+            ? (() => {
+                const xs = meshResult.landmarks.map(l => l.x);
+                const ys = meshResult.landmarks.map(l => l.y);
+                const xMin = Math.min(...xs), xMax = Math.max(...xs);
+                const yMin = Math.min(...ys), yMax = Math.max(...ys);
+                return { xMin, yMin, width: xMax - xMin, height: yMax - yMin };
+              })()
+            : undefined,
           audioBuffer: audioBuffer ?? undefined,
           file: selectedFile,
           timestamp: frame.timestamp,
