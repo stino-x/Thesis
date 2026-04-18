@@ -24,7 +24,7 @@ import { getPPGAnalyzer, type PPGAnalysisResult } from '../physiological/ppgAnal
 import { getLipSyncAnalyzer, type LipSyncAnalysisResult } from '../audio/lipSyncAnalyzer';
 import { getVoiceAnalyzer, type VoiceAnalysisResult } from '../audio/voiceAnalyzer';
 import { detectWithOnnx, initOnnxDetector } from '../onnx/onnxDetector';
-import { mediapipeBboxToFaceBbox } from '../onnx/faceLocalizer';
+import { mediapipeBboxToFaceBbox, eyePointsFromLandmarks } from '../onnx/faceLocalizer';
 import { getTemporalAnalyzer, type TemporalAnalysisResult } from '../temporal/temporalConsistency';
 
 type NormalizedLandmark = { x: number; y: number; z: number };
@@ -199,7 +199,7 @@ export class DeepfakeDetector {
    * Group B (AI-generated):      SwinV2-AI-Detector
    * Group C (forensic/texture):  TextureHeuristic, MobileNet fallback
    */
-  async detectFromImage(imageTensor: tf.Tensor, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }): Promise<DetectionResult> {
+  async detectFromImage(imageTensor: tf.Tensor, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[]): Promise<DetectionResult> {
     await this.waitForInitialization();
 
     const scores: DetectionResult['scores'] = {};
@@ -247,8 +247,9 @@ export class DeepfakeDetector {
 
     if (canvas) {
       try {
-        const bbox = faceBbox ? mediapipeBboxToFaceBbox(faceBbox) : null;
-        const onnx = await detectWithOnnx(canvas, bbox);
+        const bbox      = faceBbox ? mediapipeBboxToFaceBbox(faceBbox) : null;
+        const eyePoints = faceLandmarks ? eyePointsFromLandmarks(faceLandmarks) : undefined;
+        const onnx = await detectWithOnnx(canvas, bbox, eyePoints);
 
         // Group A: face-specific detectors
         if (onnx.vitDeepfakeExp?.available) {
@@ -391,11 +392,11 @@ export class DeepfakeDetector {
   /**
    * Ensemble: CNN image result + landmark features combined.
    */
-  async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }): Promise<DetectionResult> {
+  async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[]): Promise<DetectionResult> {
     const imageTensor = tf.browser.fromPixels(imageData).div(255.0);
 
     try {
-      const imageResult = await this.detectFromImage(imageTensor, canvas, faceBbox);
+      const imageResult = await this.detectFromImage(imageTensor, canvas, faceBbox, faceLandmarks);
 
       if (!features) return imageResult;
 
@@ -437,7 +438,7 @@ export class DeepfakeDetector {
     const results: Parameters<typeof this.combineMultiModalResults>[0] = {};
 
     if (imageData) {
-      results.visual = await this.detectEnsemble(imageData, features, canvas, faceBbox);
+      results.visual = await this.detectEnsemble(imageData, features, canvas, faceBbox, options.faceMesh);
     }
     if (file) {
       results.metadata = await getMetadataAnalyzer().analyzeFile(file);

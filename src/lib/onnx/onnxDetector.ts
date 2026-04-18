@@ -8,7 +8,7 @@
  */
 
 import * as ort from 'onnxruntime-web';
-import { cropFaceFromCanvas, type FaceBoundingBox } from './faceLocalizer';
+import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
 
 const HF_BASE = 'https://huggingface.co/stino214/deepfake-onnx-models/resolve/main';
 
@@ -191,13 +191,13 @@ async function runModel(
 /** Run all ONNX models on a canvas and return per-model scores */
 export async function detectWithOnnx(
   canvas: HTMLCanvasElement,
-  faceBbox: FaceBoundingBox | null = null
+  faceBbox: FaceBoundingBox | null = null,
+  eyePoints?: EyePoints
 ): Promise<OnnxDetectionResult> {
   const anomalies: string[] = [];
 
-  // Crop to face region before running ViT models.
-  // ViT models were trained on cropped faces — full-frame input hurts accuracy.
-  const faceCanvas = cropFaceFromCanvas(canvas, faceBbox);
+  // Crop + align face before running ViT models
+  const faceCanvas = cropFaceFromCanvas(canvas, faceBbox, 0.20, eyePoints);
 
   const [vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector] = await Promise.all([
     runModel('vitDeepfakeExp',   faceCanvas, 224),  // face-specific — use crop
