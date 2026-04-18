@@ -154,6 +154,8 @@ const ImageAnalyzer = () => {
           },
           faceMesh: meshResult.landmarks,
           canvas,
+          // Pass face bbox from detector so ViT models get a cropped face
+          faceBbox: faces[0].boundingBox ?? undefined,
           file: selectedFile,
           timestamp: performance.now(),
           univfd: univfd ?? undefined,
@@ -162,6 +164,7 @@ const ImageAnalyzer = () => {
         detectionResult = await detector.detectMultiModal({
           imageData,
           canvas,
+          faceBbox: faces[0].boundingBox ?? undefined,
           file: selectedFile,
           univfd: univfd ?? undefined,
         });
