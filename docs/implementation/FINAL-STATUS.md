@@ -44,13 +44,18 @@ All ONNX models hosted on Hugging Face (`stino214/deepfake-onnx-models`), fetche
 | Improvement | Impact |
 |---|---|
 | Center-crop before ViT inference | Preserves face geometry, direct accuracy gain |
-| Face localization (bbox from landmarks) before ONNX | ViT sees cropped face, not full frame |
-| IndexedDB model caching | No re-download on repeat visits |
+| Face alignment (eye-horizontal rotation) | Matches ViT training distribution, further accuracy gain |
+| Face localization (bbox from face detector) | ViT sees cropped face on images too, not just video |
+| IndexedDB model caching | No re-download on repeat visits (~1.1 GB saved) |
 | COOP/COEP headers (vite + vercel.json) | Multi-threaded WASM, 3-5× faster inference |
 | Phoneme onset lip-sync (spectral flux + ZCR) | Catches dubbed content RMS proxy missed |
 | Temporal consistency sliding window | Catches flickering artifacts frame models miss |
+| Temporal analyzer reset between uploads | Prevents cross-video window contamination |
 | PPG gated to video/webcam only | Eliminates noise from single-image PPG |
+| Voice analyzer multi-signal requirement | Reduces false positives on legitimate audio |
+| Lazy-loaded detection components | ML libraries only load on /detection route |
 | UnivFD fine-tuning script | `scripts/finetune_univfd.py` for custom data |
+| Ensemble weight calibration script | `scripts/calibrate_weights.py` for test-set optimization |
 
 ---
 
@@ -105,7 +110,8 @@ src/lib/
     └── univfdClient.ts        # CLIP backend client
 
 scripts/
-└── finetune_univfd.py         # Fine-tune UnivFD probe on custom deepfake data
+├── finetune_univfd.py         # Fine-tune UnivFD probe on custom deepfake data
+└── calibrate_weights.py       # Optimize ensemble group weights on labeled test set
 ```
 
 ---

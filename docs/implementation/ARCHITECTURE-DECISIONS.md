@@ -131,3 +131,43 @@ The group weights (55/35/10) reflect the relative reliability of each category: 
 **Decision:** The 4 ONNX model files (~1.1 GB total) are hosted at `huggingface.co/stino214/deepfake-onnx-models` and fetched at runtime via URL in `onnxDetector.ts`.
 
 **Why:** Vercel has a 100 MB per-file static asset limit (Free) and 1 GB (Pro). The models are 307 MB, 343 MB, 343 MB, and 95 MB — three of four exceed even the Pro limit. Git LFS would solve version control but not the Vercel deployment problem. Hugging Face is purpose-built for hosting ML model files, serves them via CloudFront CDN, has no per-file size limit up to 500 GB, and is free for public repos. The browser fetches the model directly from HF at runtime — Vercel never touches the files. `public/models/onnx/` is gitignored to prevent accidental commits.
+
+---
+
+## 17. Why face alignment (eye-horizontal rotation) before ViT inference
+
+**Decision:** Before passing a cropped face to ViT models, the crop is rotated so the line between the eyes is horizontal.
+
+**Why:** ViT deepfake models were trained on aligned face datasets (FaceForensics++, DFDC) where faces are pre-aligned. Feeding a tilted face shifts the attention map away from the regions the model learned to analyze. The alignment uses eye center points extracted from MediaPipe 468 landmarks — zero extra inference cost since landmarks are already computed. The rotation angle is `atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x)`.
+
+---
+
+## 18. Why the voice analyzer requires 2+ signals before scoring high
+
+**Decision:** `voiceAnalyzer.ts` penalizes single-signal detections by 60% and reports low confidence (0.25) when only one anomaly fires.
+
+**Why:** The FFT-based voice heuristics have high false positive rates on legitimate audio with unusual characteristics — compressed phone audio, music in the background, or non-English speech can trigger individual checks. Requiring corroboration from at least two independent signals before producing a meaningful score reduces false positives significantly. This is a known limitation of heuristic voice analysis without a trained model.
+
+---
+
+## 19. Why detection components are lazy-loaded in Detection.tsx
+
+**Decision:** `WebcamDetector`, `ImageAnalyzer`, and `VideoAnalyzer` are loaded via `React.lazy()` + `Suspense` instead of static imports.
+
+**Why:** TensorFlow.js and ONNX Runtime Web together account for ~2.35 MB of the Detection chunk. Users on the home page, login page, or audit logs page don't need these libraries. Lazy loading means the ML libraries only download when the user navigates to `/detection`, improving initial page load for all other routes.
+
+---
+
+## 20. Why the temporal consistency analyzer resets between video uploads
+
+**Decision:** `getTemporalAnalyzer().reset()` is called at the start of each `analyzeVideo()` call in VideoAnalyzer.
+
+**Why:** The temporal analyzer is a singleton with a sliding window. Without a reset, the window from the previous video's last frames would influence the first frames of the next video, producing incorrect temporal scores. The reset ensures each video analysis starts with a clean 8-frame window.
+
+---
+
+## 21. Why ensemble weights are manually tuned and a calibration script exists
+
+**Decision:** Group weights (55/35/10) are manually set in `detector.ts`. A calibration script (`scripts/calibrate_weights.py`) exists to find optimal weights from labeled test data.
+
+**Why:** Manual weights are reasonable defaults based on the relative reliability of each group — trained ML models (Groups A/B) are more reliable than forensic heuristics (Group C). However, optimal weights depend on the specific distribution of deepfakes you expect to encounter. The calibration script uses scipy L-BFGS-B optimization to minimize log-loss on a held-out test set, outputting the exact lines to paste into `detector.ts`.
