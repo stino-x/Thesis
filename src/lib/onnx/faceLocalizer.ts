@@ -56,7 +56,9 @@ export function cropFaceFromCanvas(
   const out = document.createElement('canvas');
   out.width  = cropW;
   out.height = cropH;
-  out.getContext('2d')!.drawImage(canvas, x1, y1, cropW, cropH, 0, 0, cropW, cropH);
+  const outCtx = out.getContext('2d');
+  if (!outCtx) return canvas; // fallback if canvas not supported (e.g. test env)
+  outCtx.drawImage(canvas, x1, y1, cropW, cropH, 0, 0, cropW, cropH);
   return out;
 }
 
@@ -81,7 +83,8 @@ function alignFace(
   const out = document.createElement('canvas');
   out.width  = cropW;
   out.height = cropH;
-  const ctx  = out.getContext('2d')!;
+  const ctx  = out.getContext('2d');
+  if (!ctx) return src; // fallback if canvas not supported
 
   // Translate to crop center, rotate, translate back, then draw
   const cx = cropW / 2;
