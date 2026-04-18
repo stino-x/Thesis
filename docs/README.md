@@ -1,59 +1,34 @@
-# Documentation Index
+# Documentation
 
-This directory contains all project documentation organized by purpose and phase.
+## Guides
 
-## 📋 Planning Phase
-Documentation created during the planning and design phase:
-- [AUTH-IMPLEMENTATION-PLAN.md](planning/AUTH-IMPLEMENTATION-PLAN.md) - Authentication system planning and architecture
-- [FRONTEND-PLAN.md](planning/FRONTEND-PLAN.md) - Frontend structure and component planning
-- [NEXT-STEPS.md](planning/NEXT-STEPS.md) - Roadmap and future development plans
+- [Quick Start](guides/QUICK-START.md) — get running in 5 minutes
+- [Detection System Guide](guides/DETECTION-SYSTEM-GUIDE.md) — full technical reference for the detection pipeline
+- [Developer Guide](guides/DEVELOPER_GUIDE.md) — codebase layout, adding models, deployment
 
-## 🔨 Implementation Phase
-Status reports and summaries from the implementation phase:
-- [IMPLEMENTATION-COMPLETE.md](implementation/IMPLEMENTATION-COMPLETE.md) - Complete implementation summary
-- [IMPLEMENTATION-SUMMARY.md](implementation/IMPLEMENTATION-SUMMARY.md) - Detailed implementation report
-- [IMPLEMENTATION_SUMMARY.md](implementation/IMPLEMENTATION_SUMMARY.md) - Alternative implementation summary
-- [FINAL-STATUS.md](implementation/FINAL-STATUS.md) - Final project status and accomplishments
+## Implementation
 
-## 📖 User & Developer Guides
-Comprehensive guides for using and developing the application:
-- [DEVELOPER_GUIDE.md](guides/DEVELOPER_GUIDE.md) - Complete developer documentation
-- [DETECTION-SYSTEM-GUIDE.md](guides/DETECTION-SYSTEM-GUIDE.md) - Deepfake detection system documentation
-- [UI-GUIDE.md](guides/UI-GUIDE.md) - UI components and design system guide
-- [QUICK-START.md](guides/QUICK-START.md) - Quick start guide for new users
-- [QUICK-REFERENCE.md](guides/QUICK-REFERENCE.md) - Quick reference for common tasks
+- [Architecture Decisions](implementation/ARCHITECTURE-DECISIONS.md) — every major decision with reasoning
+- [Multi-Modal Implementation](implementation/MULTI-MODAL-IMPLEMENTATION.md) — PPG, lip-sync, voice, ELA details
 
-## ⚡ Feature Documentation
-Detailed documentation for specific features:
-- [AUDIT-LOGS-SETUP.md](features/AUDIT-LOGS-SETUP.md) - Audit logging system setup
-- [AUDIT-LOGS-QUICKSTART.md](features/AUDIT-LOGS-QUICKSTART.md) - Quick start for audit logs
-- [AUDIT-LOGS-IMPLEMENTATION.md](features/AUDIT-LOGS-IMPLEMENTATION.md) - Audit logs implementation details
-- [AUDIT-LOGS-CHECKLIST.md](features/AUDIT-LOGS-CHECKLIST.md) - Audit logs verification checklist
-- [SPECIAL-FEATURES.md](features/SPECIAL-FEATURES.md) - Special features and capabilities
+## Features
 
-## 📁 Documentation Structure
+- [Audit Logs](features/AUDIT-LOGS-IMPLEMENTATION.md) — detection history with Supabase
+- [OAuth Setup](features/OAUTH-SETUP.md) — Google/GitHub authentication
 
-```
-docs/
-├── README.md (this file)
-├── planning/          # Planning and design phase documents
-├── implementation/    # Implementation status and summaries
-├── guides/           # User and developer guides
-└── features/         # Feature-specific documentation
-```
+---
 
-## 🚀 Getting Started
+## Current State (April 2026)
 
-1. **New Users**: Start with [QUICK-START.md](guides/QUICK-START.md)
-2. **Developers**: Read [DEVELOPER_GUIDE.md](guides/DEVELOPER_GUIDE.md)
-3. **Detection System**: See [DETECTION-SYSTEM-GUIDE.md](guides/DETECTION-SYSTEM-GUIDE.md)
-4. **Audit Logs**: Check [AUDIT-LOGS-QUICKSTART.md](features/AUDIT-LOGS-QUICKSTART.md)
+The system is fully implemented and deployed. Key facts:
 
-## 📝 Documentation Standards
+- 5 ML models running in-browser via TF.js + ONNX Runtime Web
+- CLIP/UnivFD backend deployed to Modal.com (free, always-on)
+- All three analyzers (image, video, webcam) wired to full ensemble
+- Supabase auth + audit logging working
+- Branch: `modelenhancement`
 
-All documentation follows these standards:
-- Markdown format
-- Clear headings and structure
-- Code examples where applicable
-- Cross-references to related docs
-- Maintained and updated with code changes
+What still needs doing:
+1. End-to-end testing with real deepfake samples
+2. Commit untracked files (`backend/`, `scripts/`, `src/lib/api/`, `src/lib/onnx/`)
+3. Performance profiling — 4 ONNX models loading simultaneously may be slow on low-end hardware

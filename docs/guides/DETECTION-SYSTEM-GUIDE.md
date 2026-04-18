@@ -1,493 +1,242 @@
-# Deepfake Detection System - Implementation Guide
+# Detection System Guide
 
-## 📋 Overview
-
-This is a comprehensive, production-ready deepfake detection system built with:
-- **React + TypeScript** for the frontend
-- **MediaPipe** for facial landmark extraction
-- **OpenCV.js** for image preprocessing
-- **TensorFlow.js** for ML inference
-- **Supabase** for database and authentication
-- **Audit logging** for transparency and compliance
+Complete technical reference for the deepfake detection pipeline.
 
 ---
 
-## 🏗️ Architecture
+## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     USER INPUT                           │
-│  (Webcam Stream / Image Upload / Video Upload)          │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│              OpenCV Preprocessing                        │
-│  • Resize, normalize, color conversion                  │
-│  • Noise reduction, histogram equalization              │
-│  • Frame extraction (for videos)                        │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│              MediaPipe Analysis                          │
-│  • Face Detection → bounding boxes                      │
-│  • Face Mesh → 468 landmarks                            │
-│  • Feature Extraction (blinks, jitter, symmetry)        │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│           TensorFlow.js Classification                   │
-│  • Feature-based detection                              │
-│  • Texture analysis                                     │
-│  • Temporal consistency (videos)                        │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│              Result Visualization                        │
-│  • Bounding boxes, landmarks overlay                    │
-│  • Confidence scores, anomaly highlights                │
-│  • Heatmaps for suspicious regions                      │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│               Audit Logging                              │
-│  • Save detection details to database                   │
-│  • Track when, where, by whom                           │
-│  • Export for legal/journalistic use                    │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-src/
-├── utils/                      # Core utilities
-│   ├── mathUtils.ts           # Mathematical operations
-│   ├── canvasUtils.ts         # Canvas drawing utilities
-│   └── videoUtils.ts          # Video/image handling
-│
-├── lib/
-│   ├── opencv/                # OpenCV.js integration
-│   │   ├── preprocessing.ts   # Image preprocessing
-│   │   ├── drawing.ts         # Drawing utilities
-│   │   └── index.ts
-│   │
-│   ├── mediapipe/             # MediaPipe integration
-│   │   ├── faceDetection.ts   # Face detection
-│   │   ├── faceMesh.ts        # 468 landmark detection
-│   │   ├── features.ts        # Feature extraction
-│   │   └── index.ts
-│   │
-│   ├── tensorflow/            # TensorFlow.js
-│   │   ├── detector.ts        # Deepfake detection
-│   │   └── index.ts
-│   │
-│   ├── auditLogger.ts         # Audit logging service
-│   └── supabase.ts            # Database client
-│
-├── components/
-│   ├── detection/             # Detection components (to be created)
-│   │   ├── WebcamDetector.tsx
-│   │   ├── ImageAnalyzer.tsx
-│   │   ├── VideoAnalyzer.tsx
-│   │   └── ResultsDisplay.tsx
-│   │
-│   ├── AuditLogs.tsx          # Audit log viewer
-│   └── ui/                    # Shadcn UI components
-│
-├── pages/
-│   ├── Index.tsx              # Landing page
-│   ├── Detection.tsx          # Main detection interface (to be created)
-│   ├── Profile.tsx            # User profile
-│   └── Login/Signup/etc.
-│
-└── types/
-    └── index.ts               # TypeScript definitions
+User Input (image / video / webcam)
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│                  BROWSER (always runs)               │
+│                                                      │
+│  Group A — Face Manipulation                         │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ ViT-Deepfake-Exp   98.8%  weight 3.0×        │   │
+│  │ ViT-Deepfake-v2    92.1%  weight 2.0×        │   │
+│  │ DeepfakeDetector   ~90%   weight 1.5×        │   │
+│  │ MesoNet4           ~90%   weight 1.0×        │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  Group B — AI-Generated Content                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ SwinV2-AI-Detector 98.1%  weight 2.0×        │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  Group C — Forensic Signals                          │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ PPG (heartbeat)  │ ELA forensics             │   │
+│  │ Metadata         │ Lip-sync (video)          │   │
+│  │ Voice artifacts  │ Landmark features         │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│           CLIP BACKEND (Modal.com, optional)         │
+│                                                      │
+│  CLIP ViT-L/14 + UnivFD linear probe                │
+│  Best generalization to unseen generators            │
+│  (DALL-E 3, Midjourney v7, FLUX, future models)     │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│                  ENSEMBLE COMBINER                   │
+│                                                      │
+│  Group A score × 0.55                               │
+│  Group B score × 0.35  (includes CLIP if available) │
+│  Group C score × 0.10                               │
+│                                                      │
+│  + Strong signal override: if any model > 92%,      │
+│    blend it in at 40% weight                        │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+    Final verdict + per-model scores + anomalies
 ```
 
 ---
 
-## 🔧 Installation & Setup
+## Model Details
 
-### 1. Install Dependencies
+### ViT-Deepfake-Exp (98.8% accuracy)
+- Architecture: ViT-base-patch16-224 (Google)
+- Training: Fine-tuned on deepfake face dataset
+- Input: 224×224, ImageNet normalization
+- Output: [Deepfake_logit, Real_logit] — fakeIndex=0
+- Source: prithivMLmods/Deepfake-Detection-Exp-02-21-ONNX
+- Weight in ensemble: 3.0× (highest — best accuracy)
 
-```bash
-npm install @mediapipe/face_detection @mediapipe/face_mesh
-npm install @tensorflow/tfjs @tensorflow/tfjs-vis
-npm install opencv.js  # Already installed
-```
+### ViT-Deepfake-v2 (92.1% accuracy)
+- Architecture: ViT-base-patch16-224
+- Training: Different dataset from Exp — adds diversity to ensemble
+- Input: 224×224, ImageNet normalization
+- Output: [Realism_logit, Deepfake_logit] — fakeIndex=1
+- Source: onnx-community/Deep-Fake-Detector-v2-Model-ONNX
+- Weight in ensemble: 2.0×
 
-### 2. Add OpenCV.js to HTML
+### SwinV2 AI Detector (98.1% accuracy)
+- Architecture: SwinV2 (Microsoft)
+- Training: Real photos vs AI-generated (SD, DALL-E, Midjourney, Firefly)
+- Input: 224×224, ImageNet normalization (int8 quantized)
+- Output: [artificial_logit, real_logit] — fakeIndex=0
+- Source: LPX55/detection-model-1-ONNX (based on haywoodsloan/ai-image-detector-deploy)
+- Weight in ensemble: 2.0×
 
-In `index.html`, add before closing `</body>`:
+### DeepfakeDetector-ONNX
+- Architecture: Unknown (LPX55 community model)
+- Training: Face-swap deepfakes
+- Input: 224×224, ImageNet normalization, single sigmoid output
+- Source: LPX55/deepfake_detectors-onnx model 03
+- Weight in ensemble: 1.5×
 
-```html
-<script async src="https://docs.opencv.org/master/opencv.js"></script>
-```
+### MesoNet4
+- Architecture: Custom shallow CNN (Afchar et al. 2018)
+- Training: Classic face-swap deepfakes
+- Input: 256×256, [0,1] normalization
+- Format: TensorFlow.js LayersModel
+- Source: Included in `/public/models/mesonet/`
+- Weight in ensemble: 1.0× (baseline)
 
-### 3. Set Up Database
-
-Follow `AUDIT-LOGS-SETUP.md` to create the audit logs table in Supabase.
+### CLIP/UnivFD Backend
+- Architecture: CLIP ViT-L/14 (OpenAI) + linear probe
+- Training: UnivFD probe trained on GAN images, generalizes to diffusion
+- Why it works: CLIP's feature space separates real from synthetic in a way that transfers to unseen generators
+- Hosted: Modal.com serverless (free tier)
+- Weight in final combiner: 35% of Group B
 
 ---
 
-## 🚀 Key Modules Explained
+## Ensemble Logic
 
-### 1. OpenCV Preprocessing (`src/lib/opencv/`)
+### Why grouped voting instead of flat average?
 
-**Purpose**: Prepare images/videos for ML analysis
+A flat weighted average has a problem: if you have 4 face-swap models and 1 AI-art model, the face-swap models dominate even when the input is a DALL-E image. Grouped voting fixes this — each specialty gets a fair vote regardless of how many models cover it.
 
-**Key Functions**:
-- `preprocessForML()` - Main preprocessing pipeline
-- `gaussianBlur()` - Noise reduction
-- `equalizeHistogram()` - Improve contrast
-- `resizeImage()` - Standardize dimensions
-- `cropToFace()` - Isolate face region
+### The groups
 
-**Usage**:
+**Group A (face manipulation)** — runs all face-specific models, takes their weighted average. Gets 55% of the final score because face manipulation is the most common deepfake type.
+
+**Group B (AI-generated content)** — SwinV2 + CLIP backend. Gets 35% because AI-generated images are increasingly common and these models are highly accurate on them.
+
+**Group C (forensic signals)** — PPG, ELA, metadata, etc. Gets 10% because these are heuristics, not trained classifiers. They add signal but shouldn't dominate.
+
+### Strong signal override
+
+If any single model scores >92%, it gets blended in at 40% weight on top of the group result. This handles cases where one model is extremely confident — you don't want the ensemble to dilute a near-certain detection.
+
+### Adaptive weights
+
+If a group has no available models (e.g., backend offline), its weight redistributes proportionally to the other groups. The system always produces a result.
+
+---
+
+## Per-Analyzer Behavior
+
+### ImageAnalyzer
+1. Load image → draw to canvas
+2. OpenCV preprocessing
+3. MediaPipe face detection + mesh
+4. Run `detectMultiModal` with: imageData, faceMesh, canvas, file, UnivFD result
+5. UnivFD called in parallel with visual analysis (not sequential)
+6. ELA forensics run separately, anomalies merged in
+7. Result displayed with per-model score breakdown
+
+### VideoAnalyzer
+1. Extract audio buffer for lip-sync/voice
+2. Extract frames at configurable interval (0.25s / 0.5s / 1.0s)
+3. UnivFD called once on first frame (file-level signal, no need to repeat)
+4. Each frame: face mesh → `detectMultiModal` with audio + UnivFD (first frame only)
+5. Temporal consistency score calculated across frames
+6. Suspicious segments identified and shown on timeline
+
+### WebcamDetector
+1. Continuous frame loop via `requestAnimationFrame`
+2. Face detection + mesh every frame
+3. `detectMultiModal` called at configurable interval (200ms / 100ms / 50ms)
+4. UnivFD called at most once every 10 seconds (CLIP is ~1-2s, too slow for every frame)
+5. Canvas overlay drawn with bounding box + landmarks + confidence badge
+
+---
+
+## ONNX Runtime Configuration
+
+WASM paths served from jsDelivr CDN:
+```
+https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/
+```
+
+Required Vite headers (set in `vite.config.ts`):
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+These are required for WASM multi-threading. Without them, ONNX Runtime falls back to single-threaded mode which is significantly slower.
+
+Models load in parallel on first `initOnnxDetector()` call. Local files tried first, remote HuggingFace URLs as fallback.
+
+---
+
+## Backend API
+
+### Endpoints
+
+`GET /health`
+```json
+{ "status": "ok", "clip_loaded": true, "univfd_loaded": true, "device": "cpu" }
+```
+
+`POST /detect`
+```json
+// Request
+{ "image": "data:image/jpeg;base64,...", "filename": "image.jpg" }
+
+// Response
+{
+  "isDeepfake": true,
+  "confidence": 0.84,
+  "score": 0.92,
+  "method": "univfd",
+  "anomalies": ["strong_ai_generation_signal"],
+  "modelLoaded": true
+}
+```
+
+### Why Modal.com?
+
+- Free tier: 30 GB-hours/month compute
+- Scales to zero when idle (no cost when not in use)
+- CLIP weights cached in Modal Volume after first run
+- Cold start: ~10s (CLIP model download + load)
+- Warm: ~1-2s per request
+
+### Fallback behavior
+
+The frontend checks backend availability on first request and caches the result. If the backend is offline or cold-starting, the app continues with browser-only models. `resetBackendCache()` can be called to retry.
+
+---
+
+## Adding New Models
+
+To add a new ONNX model:
+
+1. Add entry to `MODELS` in `src/lib/onnx/onnxDetector.ts`:
 ```typescript
-import { canvasToMat, preprocessForML } from '@/lib/opencv';
-
-const mat = canvasToMat(canvas);
-const processed = preprocessForML(mat, 224);
+myModel: {
+  local: '/models/onnx/my_model.onnx',
+  remote: 'https://huggingface.co/.../model.onnx',
+  inputSize: 224,
+  norm: 'imagenet',  // or 'neg1to1'
+  fakeIndex: 1,      // which output index = fake, or -1 for sigmoid
+  weight: 1.5,
+}
 ```
 
-### 2. MediaPipe Integration (`src/lib/mediapipe/`)
-
-**Purpose**: Extract facial features and landmarks
-
-**Modules**:
-- **FaceDetector** - Finds faces, returns bounding boxes
-- **FaceMeshDetector** - Extracts 468 facial landmarks
-- **FeatureAggregator** - Analyzes blinks, jitter, symmetry, pose
-
-**Usage**:
-```typescript
-import { getFaceDetector, getFaceMesh } from '@/lib/mediapipe';
-
-const faceDetector = getFaceDetector();
-const faceMesh = getFaceMesh();
-
-const faces = await faceDetector.detect(videoElement);
-const mesh = await faceMesh.detect(videoElement);
-```
-
-### 3. TensorFlow.js Detection (`src/lib/tensorflow/`)
-
-**Purpose**: Classify faces as real or deepfake
-
-**Key Functions**:
-- `detectFromFeatures()` - Analyze extracted features
-- `detectFromImage()` - Analyze image tensor
-- `combineResults()` - Ensemble multiple detections
-
-**Usage**:
-```typescript
-import { getDeepfakeDetector, canvasToTensor } from '@/lib/tensorflow';
-
-const detector = getDeepfakeDetector();
-const tensor = canvasToTensor(canvas);
-const result = await detector.detectFromImage(tensor);
-```
-
-### 4. Audit Logging (`src/lib/auditLogger.ts`)
-
-**Purpose**: Track all detection operations
-
-**Usage**:
-```typescript
-import { useAuditLog } from '@/hooks/useAuditLog';
-
-const { logDetection, getTimingHelper } = useAuditLog();
-const timer = getTimingHelper();
-
-// ... perform detection ...
-
-await logDetection({
-  detection_type: 'image',
-  media_type: file.type,
-  file_name: file.name,
-  file_size: file.size,
-  detection_result: isDeepfake ? 'deepfake' : 'real',
-  confidence_score: 0.95,
-  processing_time_ms: timer.getElapsedMs(),
-});
-```
-
----
-
-## 🎯 Detection Flow
-
-### For Webcam:
-```typescript
-1. Get webcam stream → video element
-2. Extract frame to canvas every 100ms
-3. OpenCV: preprocess frame
-4. MediaPipe: detect face + landmarks
-5. Extract features (blinks, jitter, etc.)
-6. TensorFlow: classify as real/fake
-7. Draw overlay with results
-8. Log detection to database
-```
-
-### For Image Upload:
-```typescript
-1. Load image file
-2. Draw to canvas
-3. OpenCV: preprocess
-4. MediaPipe: detect face + landmarks
-5. TensorFlow: classify
-6. Display results with overlay
-7. Log to database
-```
-
-### For Video Upload:
-```typescript
-1. Load video file
-2. Extract frames (e.g., 10-30)
-3. For each frame:
-   - OpenCV: preprocess
-   - MediaPipe: detect + extract features
-   - TensorFlow: classify
-4. Combine frame results
-5. Detect temporal anomalies
-6. Display timeline with suspicious segments
-7. Log to database
-```
-
----
-
-## 🔑 Key Features
-
-### Multi-Modal Detection
-✅ Visual analysis (texture, lighting, edges)
-✅ Physiological cues (blinks, micro-movements)
-✅ Temporal consistency (frame-to-frame)
-✅ Landmark stability (jitter detection)
-
-### Real-World Robustness
-✅ Works with compressed videos
-✅ Handles varying lighting
-✅ Multiple resolutions supported
-✅ Noise reduction and enhancement
-
-### Transparency & Trust
-✅ Complete audit trail
-✅ Explainable results (anomaly list)
-✅ Visual overlays (why it's flagged)
-✅ Export capabilities
-
-### Privacy-Friendly
-✅ Client-side processing (no upload required)
-✅ Optional server-side for heavy workloads
-✅ User-controlled data retention
-
----
-
-## 📊 Detection Metrics
-
-### Features Analyzed:
-
-1. **Blink Rate** (15-20/min is normal)
-   - Too low → suspicious
-   - Too high → suspicious
-
-2. **Eye Aspect Ratio** (~0.25 is normal)
-   - Measures eye opening
-   - Deepfakes often have unnatural eyes
-
-3. **Landmark Jitter** (stability)
-   - High jitter → unstable tracking
-   - Common in deepfakes
-
-4. **Face Symmetry** (should be high)
-   - Deepfakes can have asymmetry
-   - Due to poor blending
-
-5. **Mouth Movement** (variance)
-   - Unnatural lip movements
-   - Poor lip-sync
-
-6. **Head Pose Stability**
-   - Floating head effect
-   - Unnatural movements
-
----
-
-## 🎨 Next Steps: Components to Build
-
-### 1. WebcamDetector Component
-```typescript
-// src/components/detection/WebcamDetector.tsx
-- Start/stop webcam
-- Real-time frame processing
-- Live overlay with results
-- FPS counter
-```
-
-### 2. ImageAnalyzer Component
-```typescript
-// src/components/detection/ImageAnalyzer.tsx
-- Drag-and-drop upload
-- Preview with results
-- Detailed analysis view
-- Export report
-```
-
-### 3. VideoAnalyzer Component
-```typescript
-// src/components/detection/VideoAnalyzer.tsx
-- Video upload and preview
-- Frame-by-frame analysis
-- Timeline with suspicious segments
-- Temporal anomaly detection
-```
-
-### 4. ResultsDisplay Component
-```typescript
-// src/components/detection/ResultsDisplay.tsx
-- Confidence score display
-- Anomaly list
-- Visual overlays (boxes, landmarks)
-- Heatmap for suspicious regions
-```
-
-### 5. Detection Page
-```typescript
-// src/pages/Detection.tsx
-- Tab system (Webcam / Image / Video)
-- Results panel
-- Settings (confidence threshold, etc.)
-- Export and share options
-```
-
----
-
-## 📝 Usage Example
-
-```typescript
-import { WebcamDetector } from '@/components/detection/WebcamDetector';
-import { ImageAnalyzer } from '@/components/detection/ImageAnalyzer';
-import { VideoAnalyzer } from '@/components/detection/VideoAnalyzer';
-
-const DetectionPage = () => {
-  return (
-    <Tabs defaultValue="webcam">
-      <TabsList>
-        <TabsTrigger value="webcam">Live Detection</TabsTrigger>
-        <TabsTrigger value="image">Image Upload</TabsTrigger>
-        <TabsTrigger value="video">Video Upload</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="webcam">
-        <WebcamDetector />
-      </TabsContent>
-
-      <TabsContent value="image">
-        <ImageAnalyzer />
-      </TabsContent>
-
-      <TabsContent value="video">
-        <VideoAnalyzer />
-      </TabsContent>
-    </Tabs>
-  );
-};
-```
-
----
-
-## 🐛 Troubleshooting
-
-**OpenCV not loading:**
-- Check `index.html` has script tag
-- Wait for `cv.Mat` to be available
-- Use `waitForOpenCV()` function
-
-**MediaPipe errors:**
-- Check CDN links are accessible
-- Verify network connection
-- Use `waitForInitialization()`
-
-**Low FPS on webcam:**
-- Reduce processing frequency
-- Use Web Workers for heavy processing
-- Lower video resolution
-
-**Memory leaks:**
-- Always call `.delete()` on OpenCV Mats
-- Dispose TensorFlow tensors with `tf.tidy()`
-- Clean up MediaPipe instances
-
----
-
-## 📈 Performance Tips
-
-1. **Use Web Workers** for heavy processing
-2. **Batch operations** for multiple frames
-3. **Throttle** webcam processing (every 100-200ms)
-4. **Reuse** detector instances (singletons)
-5. **Profile** with Chrome DevTools
-6. **Lazy load** models only when needed
-
----
-
-## 🎯 What Makes This Special
-
-Compared to existing deepfake detectors:
-
-✅ **Multi-modal** - Not just visual analysis
-✅ **Explainable** - Shows why it flagged content
-✅ **Client-side** - Privacy-friendly option
-✅ **Audit trail** - Legal/journalistic workflows
-✅ **Open architecture** - Can integrate new models
-✅ **Real-time** - Works on live webcam
-✅ **Comprehensive** - Images + videos + live
-✅ **Production-ready** - Error handling, logging, UI
-
----
-
-## 📚 Documentation
-
-- **Setup**: `AUDIT-LOGS-SETUP.md`
-- **Quick Start**: `AUDIT-LOGS-QUICKSTART.md`
-- **Examples**: `src/lib/auditLoggingExamples.tsx`
-- **API Reference**: TypeScript types in `src/types/`
-
----
-
-## ✅ Implementation Checklist
-
-- [x] Core utilities (math, canvas, video)
-- [x] OpenCV preprocessing module
-- [x] MediaPipe integration (face detection + mesh)
-- [x] Feature extraction (blinks, jitter, etc.)
-- [x] TensorFlow.js detection
-- [x] Audit logging system
-- [ ] Webcam detector component
-- [ ] Image analyzer component
-- [ ] Video analyzer component
-- [ ] Results display component
-- [ ] Main detection page
-- [ ] Integration testing
-- [ ] Performance optimization
-
----
-
-## 🚀 Ready to Use
-
-The core infrastructure is now complete. You can:
-
-1. Import modules and use them in components
-2. Build the UI components using the provided services
-3. Integrate with your existing auth system
-4. Add custom ML models as needed
-
-**All the hard work (OpenCV, MediaPipe, TensorFlow integration) is done!**
-
-Now you just need to build the React components that use these services.
-
----
-
-Would you like me to create the detection components next?
+2. Add to `OnnxDetectionResult` interface
+3. Assign to a group in `detectFromImage` in `detector.ts`
+4. Add to download script `scripts/download_onnx_models.ps1`
