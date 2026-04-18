@@ -12,9 +12,13 @@ export default defineConfig({
   },
   server: {
     headers: {
-      // Required for ONNX Runtime Web multi-threaded WASM
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: [],
   },
 })
