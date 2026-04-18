@@ -24,6 +24,7 @@ import { getWebcamStream, stopMediaStream } from '@/utils/videoUtils';
 import { drawBoundingBox, drawLandmarks, drawConfidenceOverlay } from '@/utils/canvasUtils';
 import { getFaceDetector, getFaceMesh, FeatureAggregator } from '@/lib/mediapipe';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
+import { detectWithUnivFD } from '@/lib/api/univfdClient';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
@@ -44,6 +45,7 @@ const WebcamDetector = () => {
   const { settings } = useSettings();
   const featureAggregator = useRef(new FeatureAggregator());
   const lastProcessTime = useRef(Date.now());
+  const lastUnivfdTime = useRef(0); // throttle CLIP to once per 10s
   const frameCount = useRef(0);
 
   useEffect(() => {
@@ -197,6 +199,15 @@ const WebcamDetector = () => {
         faceMesh: meshResult.landmarks,
         canvas,
         timestamp: performance.now(),
+        // CLIP/UnivFD: run at most once every 10 seconds — too slow for every frame
+        univfd: await (async () => {
+          const now = Date.now();
+          if (now - lastUnivfdTime.current > 10000) {
+            lastUnivfdTime.current = now;
+            return detectWithUnivFD(canvas, 'webcam_frame.jpg').catch(() => null) as Promise<Parameters<typeof detector.detectMultiModal>[0]['univfd']>;
+          }
+          return undefined;
+        })(),
       });
 
       console.log('🎯 Detection result:', result.isDeepfake ? 'DEEPFAKE' : 'REAL', 'confidence:', result.confidence);
@@ -485,6 +496,18 @@ const WebcamDetector = () => {
                         </div>
                       )
                     ))}
+                  </div>
+                )}
+
+                {/* Models Used */}
+                {currentResult.modelsUsed?.length > 0 && (
+                  <div className="space-y-1">
+                    <h4 className="font-medium text-sm">Models Active</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {currentResult.modelsUsed.map((m, i) => (
+                        <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded-full">{m}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
