@@ -228,7 +228,33 @@ export class MetadataAnalyzer {
    * Analyze metadata for batch of files
    */
   async analyzeBatch(files: File[]): Promise<MetadataAnalysisResult[]> {
-    return Promise.all(files.map(file => this.analyzeFile(file)));
+    const results = await Promise.allSettled(files.map(file => this.analyzeFile(file)));
+    return results.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      } else {
+        console.error(`Failed to analyze file ${files[index].name}:`, result.reason);
+        // Return a safe default result for failed files
+        return {
+          score: 0.5, // Neutral score
+          confidence: 0,
+          anomalies: ['analysis_failed'],
+          details: {
+            fileInfo: {
+              name: files[index].name,
+              type: files[index].type,
+              size: files[index].size,
+              lastModified: files[index].lastModified,
+              lastModifiedDate: new Date(files[index].lastModified).toISOString(),
+            },
+            exifData: {},
+            suspiciousPatterns: ['Failed to analyze file'],
+            compressionArtifacts: false,
+            metadataInconsistencies: [],
+          },
+        };
+      }
+    });
   }
 }
 
