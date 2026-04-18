@@ -5,11 +5,12 @@
  * Integrates webcam, image, and video analyzers
  */
 
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Image, Video, Shield, Info } from 'lucide-react';
+import { Camera, Image, Video, Shield, Info, CheckCircle, Download, Clock, XCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 import { Header } from '@/components/Header';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
@@ -17,6 +18,8 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { AboutModal } from '@/components/AboutModal';
 import DiagnosticPanel from '@/components/DiagnosticPanel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ModelLoadingStatus, getModelStatuses, subscribeModelStatuses, type ModelStatus } from '@/components/ModelLoadingStatus';
+import { DetectionErrorBoundary } from '@/components/DetectionErrorBoundary';
 
 // Lazy-load heavy detection components — TF.js + ONNX Runtime only load
 // when the user actually navigates to /detection, not on the home page.
@@ -29,6 +32,45 @@ const DetectorFallback = () => (
     Loading detection engine...
   </div>
 );
+
+/** Inline live model status strip shown in the capabilities card */
+const LiveModelStatus = () => {
+  const [statuses, setStatuses] = useState<ModelStatus[]>(getModelStatuses());
+
+  useEffect(() => {
+    return subscribeModelStatuses(setStatuses);
+  }, []);
+
+  const stateIcon = (state: ModelStatus['state']) => {
+    if (state === 'ready' || state === 'cached') return <CheckCircle className="h-3 w-3 text-green-500" />;
+    if (state === 'downloading') return <Download className="h-3 w-3 text-primary animate-pulse" />;
+    if (state === 'error') return <XCircle className="h-3 w-3 text-red-500" />;
+    return <Clock className="h-3 w-3 text-muted-foreground" />;
+  };
+
+  const stateBadge = (state: ModelStatus['state']) => {
+    if (state === 'ready') return <Badge className="text-[10px] px-1 py-0 bg-green-500">ready</Badge>;
+    if (state === 'cached') return <Badge className="text-[10px] px-1 py-0 bg-blue-500">cached</Badge>;
+    if (state === 'downloading') return <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary">downloading</Badge>;
+    if (state === 'error') return <Badge variant="destructive" className="text-[10px] px-1 py-0">error</Badge>;
+    return <Badge variant="secondary" className="text-[10px] px-1 py-0">pending</Badge>;
+  };
+
+  return (
+    <div className="mt-6 pt-4 border-t">
+      <p className="text-xs font-medium text-muted-foreground mb-3">Live Model Status</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {statuses.map(s => (
+          <div key={s.key} className="flex items-center gap-2 text-xs p-2 rounded-md bg-muted/50">
+            {stateIcon(s.state)}
+            <span className="truncate flex-1">{s.label}</span>
+            {stateBadge(s.state)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const Detection = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -95,6 +137,7 @@ const Detection = () => {
 
         {/* Webcam Detection */}
         <TabsContent value="webcam" className="space-y-6">
+          <ModelLoadingStatus />
           <Card>
             <CardHeader>
               <CardTitle>Real-time Webcam Detection</CardTitle>
@@ -103,9 +146,11 @@ const Detection = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Suspense fallback={<DetectorFallback />}>
-                <WebcamDetector />
-              </Suspense>
+              <DetectionErrorBoundary label="Webcam detection">
+                <Suspense fallback={<DetectorFallback />}>
+                  <WebcamDetector />
+                </Suspense>
+              </DetectionErrorBoundary>
             </CardContent>
           </Card>
           <DiagnosticPanel />
@@ -113,16 +158,22 @@ const Detection = () => {
 
         {/* Image Analysis */}
         <TabsContent value="image" className="space-y-6">
-          <Suspense fallback={<DetectorFallback />}>
-            <ImageAnalyzer />
-          </Suspense>
+          <ModelLoadingStatus />
+          <DetectionErrorBoundary label="Image analysis">
+            <Suspense fallback={<DetectorFallback />}>
+              <ImageAnalyzer />
+            </Suspense>
+          </DetectionErrorBoundary>
         </TabsContent>
 
         {/* Video Analysis */}
         <TabsContent value="video" className="space-y-6">
-          <Suspense fallback={<DetectorFallback />}>
-            <VideoAnalyzer />
-          </Suspense>
+          <ModelLoadingStatus />
+          <DetectionErrorBoundary label="Video analysis">
+            <Suspense fallback={<DetectorFallback />}>
+              <VideoAnalyzer />
+            </Suspense>
+          </DetectionErrorBoundary>
         </TabsContent>
       </Tabs>
 
@@ -142,11 +193,11 @@ const Detection = () => {
                 Webcam Analysis
               </h3>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Real-time face detection</li>
-                <li>• Continuous monitoring mode</li>
-                <li>• Live overlay visualization</li>
-                <li>• Snapshot capture with logging</li>
-                <li>• FPS performance tracking</li>
+                <li>• ViT-Deepfake-Exp (98.8% accuracy) via ONNX</li>
+                <li>• SwinV2 AI-generation detector (98.1%)</li>
+                <li>• PPG blood-flow physiological signal</li>
+                <li>• 468-point MediaPipe face mesh</li>
+                <li>• Continuous monitoring with FPS tracking</li>
               </ul>
             </div>
 
@@ -156,11 +207,11 @@ const Detection = () => {
                 Image Analysis
               </h3>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Drag & drop upload</li>
-                <li>• Facial landmark detection</li>
-                <li>• Texture analysis</li>
-                <li>• Feature symmetry checks</li>
-                <li>• Detailed report export</li>
+                <li>• ViT-Deepfake-Exp + ViT-v2 + MesoNet4</li>
+                <li>• CLIP/UnivFD backend (unseen generators)</li>
+                <li>• Error Level Analysis (ELA) forensics</li>
+                <li>• Metadata anomaly detection</li>
+                <li>• Drag & drop with detailed report export</li>
               </ul>
             </div>
 
@@ -170,14 +221,17 @@ const Detection = () => {
                 Video Analysis
               </h3>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Frame-by-frame analysis</li>
-                <li>• Temporal consistency checks</li>
-                <li>• Suspicious segment detection</li>
-                <li>• Interactive timeline</li>
-                <li>• Comprehensive report</li>
+                <li>• Batched frame analysis (4 frames parallel)</li>
+                <li>• Temporal consistency (8-frame window)</li>
+                <li>• Phoneme-based lip-sync detection</li>
+                <li>• Voice artifact analysis</li>
+                <li>• Suspicious segment timeline</li>
               </ul>
             </div>
           </div>
+
+          {/* Live model status */}
+          <LiveModelStatus />
         </CardContent>
       </Card>
 
