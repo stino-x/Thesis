@@ -97,6 +97,36 @@ modal deploy backend/modal_app.py
 
 ---
 
+## Documentation
+
+### Getting Started
+- [Quick Start Guide](docs/guides/QUICK_START_GUIDE.md) - Get up and running
+- [Quick Reference](docs/guides/QUICK_REFERENCE.md) - API and command reference
+- [Project Status](docs/PROJECT_STATUS.md) - Current status and roadmap
+
+### User Guides
+- [Detection System Guide](docs/guides/DETECTION-SYSTEM-GUIDE.md) - How detection works
+- [UI Guide](docs/guides/UI-GUIDE.md) - Using the interface
+- [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md) - Production deployment
+
+### Developer Guides
+- [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) - Development setup
+- [Architecture Decisions](docs/implementation/ARCHITECTURE-DECISIONS.md) - Design choices
+
+### Features
+- [Research-Grade Features](docs/features/RESEARCH-GRADE-FEATURES.md) - Advanced features
+- [Special Features](docs/features/SPECIAL-FEATURES.md) - Unique capabilities
+- [Audit Logs Guide](docs/features/AUDIT-LOGS-GUIDE.md) - Logging system
+- [Backend Auth Setup](docs/features/BACKEND-AUTH-SETUP.md) - API authentication
+- [OAuth Setup](docs/features/OAUTH-SETUP.md) - Social login
+
+### Audit Reports
+- [System Audit Complete](docs/audit/SYSTEM_AUDIT_COMPLETE.md) - Comprehensive audit
+- [Final Audit Report](docs/audit/FINAL_AUDIT_REPORT.md) - Executive summary
+- [Audit Fixes Summary](docs/audit/AUDIT_FIXES_SUMMARY.md) - Visual overview
+
+---
+
 ## Project Structure
 
 ```
