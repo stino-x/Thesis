@@ -198,8 +198,9 @@ const WebcamDetector = () => {
         features,
         faceMesh: meshResult.landmarks,
         canvas,
+        faceBbox: face.boundingBox ?? undefined,
         timestamp: performance.now(),
-        // CLIP/UnivFD: run at most once every 10 seconds — too slow for every frame
+        isVideoFrame: true,
         univfd: await (async () => {
           const now = Date.now();
           if (now - lastUnivfdTime.current > 10000) {
