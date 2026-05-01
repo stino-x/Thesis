@@ -130,8 +130,10 @@ export class DeepfakeDetector {
       this.mesonet = await tf.loadLayersModel('/models/mesonet/model.json');
       this.availability.mesonet = true;
       console.log('✅ MesoNet4 loaded (256×256, classic face-swaps)');
-    } catch {
-      console.warn('⚠️  MesoNet not found at /models/mesonet/model.json');
+    } catch (error) {
+      console.warn('⚠️  MesoNet failed to load:', error instanceof Error ? error.message : 'Unknown error');
+      console.warn('⚠️  MesoNet is optional - detection will continue with other models');
+      this.availability.mesonet = false;
     }
   }
 

@@ -118,7 +118,7 @@ const DiagnosticPanel = () => {
       newStatuses.push({
         name: 'MesoNet Model',
         status: 'error',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Model loading failed (optional - other models will be used)',
       });
     }
 
