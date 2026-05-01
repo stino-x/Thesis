@@ -61,5 +61,25 @@ build/
 # Report (generated — not for version control)
 DETECTION_SYSTEM_REPORT.md
 
+# Documentation (keep only submission docs)
+docs/audit/
+docs/features/
+docs/guides/
+docs/implementation/
+docs/planning/
+docs/technical/
+docs/demo/
+docs/CHANGELOG.md
+docs/DEMO_QUICK_REFERENCE.md
+docs/DEPLOYMENT_CHECKLIST.md
+docs/DOCUMENTATION_INDEX.md
+docs/PRESENTATION_GUIDE.md
+docs/PROJECT_STATUS.md
+docs/PROJECT_COMPLETION_SUMMARY.md
+docs/README.md
+docs/REMAINING_WORK.md
+docs/SAMPLE_SOURCES.md
+docs/COMMIT_SUMMARY.md
+
 # OS
 Thumbs.db
