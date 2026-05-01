@@ -153,7 +153,7 @@ class Detector:
 )
 @modal.asgi_app()
 def fastapi_app():
-    from fastapi import FastAPI, HTTPException, Header
+    from fastapi import Depends, FastAPI, HTTPException, Header
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
 
@@ -171,7 +171,11 @@ def fastapi_app():
         print("WARNING: BACKEND_SECRET not set — authentication disabled!")
 
     def verify_auth(x_api_key: Optional[str] = Header(None)):
-        """Verify the shared secret header to prevent abuse"""
+        """Verify the shared secret header to prevent abuse.
+
+        Used as a FastAPI dependency via Depends() so the X-API-Key header
+        is automatically extracted and injected by FastAPI.
+        """
         if not BACKEND_SECRET:
             return  # Auth disabled if no secret configured
         if not x_api_key or x_api_key != BACKEND_SECRET:
@@ -194,10 +198,7 @@ def fastapi_app():
         }
 
     @web_app.post("/detect")
-    def detect(req: DetectRequest, _auth=None):
-        # Verify auth first
-        if BACKEND_SECRET:
-            verify_auth(_auth)
+    def detect(req: DetectRequest, _auth=Depends(verify_auth)):
         detector = Detector()
         return detector.detect.remote(req.image, req.filename or "image.jpg")
 
