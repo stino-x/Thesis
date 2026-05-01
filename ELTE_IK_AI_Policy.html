@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELTE IK — AI Usage Policy for Theses</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0f0e0d;
+    --paper: #f5f1ea;
+    --cream: #ede8df;
+    --red: #c0392b;
+    --red-muted: #e8d5d3;
+    --green: #2d6a4f;
+    --green-muted: #d4e8de;
+    --amber: #b5651d;
+    --amber-muted: #f0e2d0;
+    --blue: #1a3a5c;
+    --blue-muted: #d0dce9;
+    --rule: #c8bfb0;
+    --faint: #e8e2d8;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .header-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 64px 40px 52px;
+    position: relative;
+    z-index: 1;
+  }
+  .header-kicker {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #a09888;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-kicker::before {
+    content: '';
+    display: inline-block;
+    width: 28px;
+    height: 1px;
+    background: #a09888;
+  }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+    max-width: 680px;
+  }
+  header h1 em {
+    font-style: normal;
+    color: #c8bfb0;
+  }
+  .header-sub {
+    font-size: 13px;
+    color: #8a7f74;
+    font-family: 'DM Mono', monospace;
+    margin-top: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .header-sub span { display: flex; align-items: center; gap: 6px; }
+  .header-sub span::before {
+    content: '●';
+    font-size: 6px;
+    color: var(--red);
+  }
+  .header-bg-text {
+    position: absolute;
+    right: -20px;
+    top: -10px;
+    font-family: 'Playfair Display', serif;
+    font-size: 200px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.03);
+    pointer-events: none;
+    user-select: none;
+    line-height: 1;
+  }
+
+  /* ── NAV ── */
+  nav {
+    background: var(--cream);
+    border-bottom: 1px solid var(--rule);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 40px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav-inner::-webkit-scrollbar { display: none; }
+  nav a {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #7a7060;
+    text-decoration: none;
+    padding: 14px 16px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  nav a:hover { color: var(--ink); border-color: var(--ink); }
+
+  /* ── MAIN ── */
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 56px 40px 100px;
+  }
+
+  /* ── SECTION ── */
+  section { margin-bottom: 72px; }
+  section:last-child { margin-bottom: 0; }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #a09888;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+  h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 28px;
+    line-height: 1.2;
+  }
+  h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    margin-top: 32px;
+  }
+  p { margin-bottom: 16px; color: #3a3530; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── INTRO BOX ── */
+  .intro-box {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 4px;
+    padding: 36px 40px;
+    margin-bottom: 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .intro-box::before {
+    content: '§';
+    position: absolute;
+    right: 24px;
+    top: -16px;
+    font-family: 'Playfair Display', serif;
+    font-size: 120px;
+    color: rgba(255,255,255,0.05);
+    font-weight: 900;
+    pointer-events: none;
+  }
+  .intro-box p { color: #c8bfb0; margin-bottom: 0; font-size: 14px; }
+  .intro-box strong { color: var(--paper); }
+
+  /* ── STATUS CHIPS ── */
+  .chip {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .chip-red   { background: var(--red-muted);   color: var(--red); }
+  .chip-green { background: var(--green-muted); color: var(--green); }
+  .chip-amber { background: var(--amber-muted); color: var(--amber); }
+  .chip-blue  { background: var(--blue-muted);  color: var(--blue); }
+
+  /* ── RULE CARDS ── */
+  .rule-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 600px) { .rule-grid { grid-template-columns: 1fr; } }
+
+  .rule-card {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 24px;
+    background: #fff;
+    position: relative;
+  }
+  .rule-card.full { grid-column: 1 / -1; }
+  .rule-card-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #a09888;
+    margin-bottom: 8px;
+  }
+  .rule-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .rule-card p { font-size: 13.5px; color: #4a4540; margin-bottom: 0; }
+
+  /* ── COLORED CARDS ── */
+  .card-red   { border-left: 3px solid var(--red);   background: #fdf8f8; }
+  .card-green { border-left: 3px solid var(--green); background: #f5faf7; }
+  .card-amber { border-left: 3px solid var(--amber); background: #fdf8f2; }
+  .card-blue  { border-left: 3px solid var(--blue);  background: #f5f8fb; }
+
+  /* ── POLICY LEVELS ── */
+  .policy-level {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    background: #fff;
+  }
+  .policy-level-head {
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--faint);
+  }
+  .policy-level-body {
+    padding: 16px 24px;
+    font-size: 13.5px;
+    color: #4a4540;
+  }
+  .policy-level-body ul { padding-left: 18px; }
+  .policy-level-body li { margin-bottom: 6px; }
+
+  /* ── TABLE ── */
+  .doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 20px 0;
+    background: #fff;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .doc-table th {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 400;
+  }
+  .doc-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--faint);
+    vertical-align: top;
+    color: #3a3530;
+  }
+  .doc-table tr:last-child td { border-bottom: none; }
+  .doc-table tr:hover td { background: var(--faint); }
+
+  /* ── DECLARATION BOX ── */
+  .declaration-box {
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    padding: 32px 36px;
+    background: #fff;
+    margin-top: 8px;
+  }
+  .declaration-box h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .declaration-box ul {
+    list-style: none;
+    padding: 0;
+  }
+  .declaration-box ul li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--faint);
+    font-size: 13.5px;
+    color: #3a3530;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .declaration-box ul li:last-child { border-bottom: none; }
+  .declaration-box ul li::before {
+    content: '→';
+    font-family: 'DM Mono', monospace;
+    color: var(--red);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ── VIOLATION BOX ── */
+  .violation-box {
+    background: #1a0a09;
+    color: #f0dbd9;
+    border-radius: 4px;
+    padding: 32px 36px;
+  }
+  .violation-box h3 {
+    font-family: 'Playfair Display', serif;
+    color: #e8c5c1;
+    margin-top: 0;
+  }
+  .violation-box ul {
+    padding-left: 0;
+    list-style: none;
+  }
+  .violation-box ul li {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 13.5px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .violation-box ul li:last-child { border-bottom: none; }
+  .violation-box ul li::before {
+    content: '!';
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--red);
+    width: 18px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+
+  /* ── TERM GLOSSARY ── */
+  .term-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--faint);
+    align-items: start;
+    font-size: 13.5px;
+  }
+  .term-row:last-child { border-bottom: none; }
+  .term-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--blue);
+    font-weight: 500;
+    padding-top: 2px;
+  }
+  .term-def { color: #3a3530; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--cream);
+    border-top: 1px solid var(--rule);
+    padding: 32px 40px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: #a09888;
+    letter-spacing: 0.1em;
+  }
+  footer strong { color: var(--ink); }
+
+  /* ── MISC ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+  .meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--faint);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 4px 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: #7a7060;
+    margin: 4px 4px 4px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-bg-text">AI</div>
+  <div class="header-inner">
+    <div class="header-kicker">ELTE Faculty of Informatics</div>
+    <h1>Artificial Intelligence<br><em>in Education, Research</em><br>& Administration</h1>
+    <div class="header-sub">
+      <span>Dean's Directive No. 1/2026</span>
+      <span>Effective: 26 March 2026</span>
+      <span>Review due: 1 July 2026</span>
+    </div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#overview">Overview</a>
+    <a href="#terms">Terms</a>
+    <a href="#guidelines">Guidelines</a>
+    <a href="#theses">Theses</a>
+    <a href="#research">Research</a>
+    <a href="#documentation">Documentation</a>
+    <a href="#violations">Violations</a>
+    <a href="#declaration">Declaration</a>
+    <a href="#glossary">Glossary</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main>
+
+  <!-- INTRO -->
+  <div class="intro-box">
+    <p>This document establishes the <strong>artificial intelligence policy</strong> of the ELTE Faculty of Informatics at faculty, institute, and department levels. It defines supported, permitted, and prohibited uses of AI and provides supplementary rules to <strong>EU Regulation 2024/1689</strong> and <strong>Rector's Instruction 4/2025 (X.28.)</strong> on AI use in education.</p>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <div class="section-label">§1 — Scope &amp; Purpose</div>
+    <h2>Who and What This Covers</h2>
+    <p>These guidelines apply to all students, faculty, researchers, and administrative staff across all courses, degree programs (BSc, MSc, doctoral), research projects, and administrative processes within the Faculty.</p>
+    <div class="rule-grid">
+      <div class="rule-card">
+        <div class="rule-card-title">Included AI Systems</div>
+        <h4>General-purpose AI</h4>
+        <p>LLM-based chatbots, image and code generators (e.g. ChatGPT, Copilot, Grok, etc.)</p>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-title">Included AI Systems</div>
+        <h4>Embedded AI</h4>
+        <p>Spell checkers, AI-based search, recommendation systems built into standard software</p>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-title">Included AI Systems</div>
+        <h4>Institutional AI</h4>
+        <p>Institutionally procured or locally run AI systems provided by the Faculty</p>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-title">Included AI Systems</div>
+        <h4>Student-trained Models</h4>
+        <p>Any AI model trained, fine-tuned, or developed by students as part of their work</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TERMS -->
+  <section id="terms">
+    <div class="section-label">§2 — Core Principles</div>
+    <h2>Universal Guidelines</h2>
+    <div class="rule-grid">
+      <div class="rule-card card-blue">
+        <div class="rule-card-title">Principle</div>
+        <h4>Human Oversight &amp; Responsibility</h4>
+        <p>AI is solely a tool. Ultimate responsibility for content, accuracy, ethical and legal compliance rests with the human user — always.</p>
+      </div>
+      <div class="rule-card card-green">
+        <div class="rule-card-title">Principle</div>
+        <h4>Educational Purpose</h4>
+        <p>AI must support and enrich teaching and learning, not replace the learning process. Guidance on benefits, limitations, and risks must accompany its use.</p>
+      </div>
+      <div class="rule-card card-amber">
+        <div class="rule-card-title">Principle</div>
+        <h4>Transparency</h4>
+        <p>In all evaluated assignments, AI tool usage must be referenced: which tool, when, for what purpose, and in which part of the work.</p>
+      </div>
+      <div class="rule-card card-red">
+        <div class="rule-card-title">Principle</div>
+        <h4>Academic Integrity</h4>
+        <p>AI-generated content may only appear in student submissions if the instructor explicitly grants permission. Submitted work must reflect the student's own thinking.</p>
+      </div>
+      <div class="rule-card full card-blue">
+        <div class="rule-card-title">Principle</div>
+        <h4>Ethics, Data Protection &amp; Privacy</h4>
+        <p>AI use must comply with GDPR, institutional confidential data protection, and copyright/intellectual property regulations. Sensitive, personal, or unpublished data may only be entered into external AI tools with explicit permission.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- GUIDELINES FOR COURSES & THESES -->
+  <section id="theses">
+    <div class="section-label">§3 — Courses &amp; Theses</div>
+    <h2>AI Use in Academic Work</h2>
+
+    <h3>Course Requirements</h3>
+    <p>Instructors must publish AI usage rules on the course description page and review them each semester. The syllabus must specify:</p>
+    <div style="background:#fff; border:1px solid var(--rule); border-radius:4px; overflow:hidden; margin-bottom:24px;">
+      <table class="doc-table" style="margin:0; border:none;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Required Specification</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="font-family:'DM Mono',monospace;font-size:11px;color:#a09888;">01</td><td>Conditions for AI use per assignment type (prohibited / conditionally permitted / allowed / required)</td></tr>
+          <tr><td style="font-family:'DM Mono',monospace;font-size:11px;color:#a09888;">02</td><td>Specific AI usage rules for individual tasks, where relevant</td></tr>
+          <tr><td style="font-family:'DM Mono',monospace;font-size:11px;color:#a09888;">03</td><td>Student declaration and documentation requirements</td></tr>
+          <tr><td style="font-family:'DM Mono',monospace;font-size:11px;color:#a09888;">04</td><td>Links to applicable university and faculty regulations and the AI declaration</td></tr>
+          <tr><td style="font-family:'DM Mono',monospace;font-size:11px;color:#a09888;">05</td><td>Method of AI use in the evaluation of student performance (if relevant)</td></tr>
+          <tr><td style="font-family:'DM Mono',monospace;font-size:11px;color:#a09888;">06</td><td>Penalties for absent, missing, or falsified AI declarations</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>BSc &amp; MSc Theses — Specific Rules</h3>
+    <p>In all student work (theses, assignments, homework), it is <strong>mandatory</strong> to indicate AI use at the point of use (e.g., via footnote or code comment).</p>
+    <div class="rule-grid">
+      <div class="rule-card card-green">
+        <div class="rule-card-title">Required</div>
+        <h4>Advisor Oversight</h4>
+        <p>The thesis advisor continuously consults with the student regarding AI use and monitors its use during each phase of the thesis writing process.</p>
+      </div>
+      <div class="rule-card card-amber">
+        <div class="rule-card-title">Required</div>
+        <h4>AI Usage Declaration</h4>
+        <p>A student AI usage declaration is mandatory — included as part of the methodology chapter or developer documentation — with an overview summary for the entire work.</p>
+      </div>
+    </div>
+
+    <h3>The Four Levels of AI Use Permission</h3>
+    <div class="policy-level">
+      <div class="policy-level-head"><span class="chip chip-red">Prohibited</span><strong>Strictly no AI</strong></div>
+      <div class="policy-level-body">All submitted work must be the student's own. Using generative AI to complete any part of the assignment is prohibited. Violations result in denial of grade or disciplinary consequences.</div>
+    </div>
+    <div class="policy-level">
+      <div class="policy-level-head"><span class="chip chip-amber">Conditional</span><strong>Limited AI permitted</strong></div>
+      <div class="policy-level-body">
+        AI may be used as an aid only — for brainstorming, prototyping, drafting, or the research phase — provided it aligns with learning objectives.
+        <ul style="margin-top:10px;">
+          <li>Using AI to write the substantive content of the assignment is prohibited</li>
+          <li>Usage must be documented at point of use (tool name in footnote/comment)</li>
+          <li>Complete AI interaction log must be retained and available upon request</li>
+        </ul>
+      </div>
+    </div>
+    <div class="policy-level">
+      <div class="policy-level-head"><span class="chip chip-green">Permitted</span><strong>AI use welcomed</strong></div>
+      <div class="policy-level-body">Generative AI tools can assist with brainstorming, literature review, drafting, code/diagram generation, or testing alternative approaches. Use is welcome and may be encouraged for certain assignments.</div>
+    </div>
+    <div class="policy-level">
+      <div class="policy-level-head"><span class="chip chip-blue">Expected</span><strong>AI use required</strong></div>
+      <div class="policy-level-body">AI use is expected in practical assignments to develop solution strategies, process literature, and summarize findings. Students must independently and critically evaluate results. Proper, intended, and independent AI use is part of the assessment.</div>
+    </div>
+  </section>
+
+  <!-- RESEARCH -->
+  <section id="research">
+    <div class="section-label">§4 — Research, Development &amp; Innovation</div>
+    <h2>AI in RDI Activities</h2>
+    <p>AI may significantly enhance the efficiency of research activities; however it cannot replace scientific reasoning, AI-generated data and conclusions require critical evaluation, and ethical and legal issues may arise.</p>
+    <p><strong>AI use in research is generally permitted</strong> (literature review, hypothesis generation, data analysis, code generation, text/literature editing, formatting), with the following obligations:</p>
+
+    <div class="rule-grid">
+      <div class="rule-card card-amber">
+        <div class="rule-card-title">Obligation</div>
+        <h4>Critical Assessment</h4>
+        <p>AI-generated content must be critically assessed. Consider that AI models reflect biases in training data, outputs are nondeterministic, and AI may reproduce expressions from training data.</p>
+      </div>
+      <div class="rule-card card-amber">
+        <div class="rule-card-title">Obligation</div>
+        <h4>Documentation</h4>
+        <p>AI usage must be clearly documented in accordance with publisher, client, funding body, or corporate data protection requirements.</p>
+      </div>
+      <div class="rule-card full card-red">
+        <div class="rule-card-title">Prohibition</div>
+        <h4>No Uploading Sensitive Research Data</h4>
+        <p>Do not upload unpublished results ("raw data"), personal data of students/researchers/partners, or industrial research results to external public AI platforms. Compliance with GDPR and field-specific data management regulations is mandatory.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOCUMENTATION -->
+  <section id="documentation">
+    <div class="section-label">§5 — Documentation Requirements</div>
+    <h2>How to Document AI Use in Your Thesis</h2>
+
+    <p>For every submitted BSc and MSc thesis, a signed <strong>Declaration on the Use of AI Tools</strong> must be attached as a separate file within the submitted <code style="background:var(--faint);padding:1px 6px;border-radius:2px;font-family:'DM Mono',monospace;font-size:12px;">.zip</code> archive.</p>
+
+    <h3>Documentation Table</h3>
+    <p>The declaration must include a table documenting every AI tool used:</p>
+
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th>Purpose of Use</th>
+          <th>Method of Use</th>
+          <th>AI Tool Used</th>
+          <th>Part of Work</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:#a09888;font-style:italic;font-size:12px;">e.g. drafting, literature review, AI development</td>
+          <td style="color:#a09888;font-style:italic;font-size:12px;">e.g. validating AI output, adapting to assignment, revisions, evidence of critical and creative use</td>
+          <td style="color:#a09888;font-style:italic;font-size:12px;">e.g. ChatGPT 3.0, Copilot, Grok</td>
+          <td style="color:#a09888;font-style:italic;font-size:12px;">e.g. Table of Contents p.3, implementation</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Spring Semester 2025/26 — Transitional Provisions</h3>
+    <p>Signed by Dean Dr. Tamás Kozsik. Supervisors were required to notify students in writing by <strong>15 April 2026</strong>.</p>
+    <div class="two-col" style="margin-top:8px;">
+      <div class="rule-card card-green">
+        <div class="rule-card-title">If supervisor prohibited AI</div>
+        <h4>Full Prohibition Applies</h4>
+        <p>Student must comply with the prohibition and document this accordingly in the Declaration.</p>
+      </div>
+      <div class="rule-card card-blue">
+        <div class="rule-card-title">If supervisor set no conditions</div>
+        <h4>Use Permitted with Documentation</h4>
+        <p>AI use is permitted, but must be detailed in the Declaration. AI-generated output may not be submitted as own work without verification.</p>
+      </div>
+    </div>
+    <p style="margin-top:16px;font-size:13.5px;color:#5a5550;"><strong>Turnitin check:</strong> The supervisor shall check the thesis using the Turnitin system and verify formal and substantive compliance of the submitted Declaration.</p>
+  </section>
+
+  <!-- VIOLATIONS -->
+  <section id="violations">
+    <div class="section-label">§7 — Consequences</div>
+    <h2>Violations &amp; Penalties</h2>
+    <div class="violation-box">
+      <h3>Consequences of Non-Compliance</h3>
+      <ul>
+        <li>Violations are handled according to the institution's general disciplinary and ethical regulations.</li>
+        <li>The instructor and/or responsible committee (Research Ethics Committee, Student Disciplinary Board) investigates; submitted work may be rejected or deemed unassessable.</li>
+        <li>Undocumented or inaccurately documented AI use, or a false AI Declaration, is treated <strong>the same as plagiarism</strong> — Academic and Examination Regulations Sections 74A–E apply.</li>
+        <li>In case of plagiarism, the thesis/diploma work cannot be evaluated, and disciplinary proceedings may be initiated.</li>
+        <li>Uploading research data subject to publication restrictions to AI systems may entail <strong>legal liability</strong>.</li>
+        <li>Uploading personal data without explicit consent constitutes a breach of GDPR and may result in legal or ethical accountability.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- DECLARATION -->
+  <section id="declaration">
+    <div class="section-label">§Annex 3 — Declaration</div>
+    <h2>Student Declaration Checklist</h2>
+    <p>By signing the Declaration on the Use of AI Tools, the student certifies all of the following:</p>
+    <div class="declaration-box">
+      <h4>You declare and certify that you:</h4>
+      <ul>
+        <li>Take full responsibility for the content of the submitted work</li>
+        <li>Are familiar with the concept of plagiarism and Sections 74/A–E of the Academic and Examination Regulations (HKR)</li>
+        <li>Are familiar with Dean's Instruction 1/2026 (III.26.) on the Use of AI in Education, Research, and Administration</li>
+        <li>Have only used the AI tools listed in the declaration table</li>
+        <li>Have not copied AI-generated text or code without verification and proper citation</li>
+        <li>Will retain the complete AI usage log on the platform until evaluation is complete, and present it upon request</li>
+      </ul>
+      <h4 style="margin-top:20px;">You acknowledge that:</h4>
+      <ul>
+        <li>Directly copying AI-generated content as your own work, or failing to document AI usage, is equivalent to plagiarism</li>
+        <li>Your submission may be checked with plagiarism detection software after submission</li>
+        <li>In case of suspected plagiarism, the supervisor may verify orally or in writing that results reflect your own knowledge</li>
+        <li>In case of plagiarism, your thesis/diploma work cannot be evaluated and disciplinary proceedings may be initiated</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- GLOSSARY -->
+  <section id="glossary">
+    <div class="section-label">Definitions</div>
+    <h2>Key Terms</h2>
+    <div style="background:#fff; border:1px solid var(--rule); border-radius:4px; padding:24px 28px;">
+      <div class="term-row">
+        <div class="term-name">Artificial Intelligence</div>
+        <div class="term-def">Computer systems capable of partially or fully automating tasks requiring human interpretation, decision-making, or problem-solving — including text generation, translation, visual/audio analysis, and generative AI applications.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Generative AI (GAI)</div>
+        <div class="term-def">AI systems that generate new, previously non-existent content — text, images, audio, video, or code — based on user instructions and patterns learned from large datasets.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Large Language Model</div>
+        <div class="term-def">A type of generative AI trained on massive text collections, designed to generate human-like text, answer questions, and follow natural-language instructions.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Machine Learning (ML)</div>
+        <div class="term-def">A subfield of AI where models are trained on data to recognize patterns and make predictions or decisions without predefined rules.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Narrow / Embedded AI</div>
+        <div class="term-def">AI integrated into specific tools performing a well-defined task (e.g., spell checkers, spam filters).</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">General-purpose AI</div>
+        <div class="term-def">AI tools applicable to a wide variety of tasks and fields (e.g., LLM-based open-ended chatbots).</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Prompt</div>
+        <div class="term-def">The input or instruction a user provides to an AI system (often in natural language) that determines the system's response or generated output.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Hallucination</div>
+        <div class="term-def">An incorrect or unfounded response produced by an AI system, often presented as fact.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">AI-assisted Work</div>
+        <div class="term-def">Academic work in which AI tools were used in any part of the process (brainstorming, drafting, editing, coding, etc.), while the human author remains responsible for the final result and its integrity.</div>
+      </div>
+      <div class="term-row">
+        <div class="term-name">Training Data</div>
+        <div class="term-def">Texts, images, code, or other data used to train, develop, and fine-tune an AI model — significantly influencing its operation, strengths, and biases.</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div style="margin-bottom:8px;">
+    <span class="meta-pill">Dean's Directive No. 1/2026</span>
+    <span class="meta-pill">Effective: 26 March 2026</span>
+    <span class="meta-pill">Review: 1 July 2026</span>
+  </div>
+  <strong>ELTE Faculty of Informatics</strong> — Eötvös Loránd University, Budapest &nbsp;·&nbsp; Dean: Dr. Tamás Kozsik<br>
+  <span style="margin-top:6px;display:block;">Supplementary to EU Regulation 2024/1689 and Rector's Instruction 4/2025 (X.28.)</span>
+</footer>
+
+</body>
+</html>

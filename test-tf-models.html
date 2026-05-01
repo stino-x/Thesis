@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TensorFlow.js Model Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+</head>
+<body>
+  <h1>TensorFlow.js Model Integration Test</h1>
+  <div id="status">Testing...</div>
+  <div id="results"></div>
+
+  <script>
+    async function testModels() {
+      const statusDiv = document.getElementById('status');
+      const resultsDiv = document.getElementById('results');
+      
+      try {
+        // Test 1: TensorFlow.js ready
+        await tf.ready();
+        resultsDiv.innerHTML += '<p>✅ TensorFlow.js loaded successfully</p>';
+        resultsDiv.innerHTML += `<p>Backend: ${tf.getBackend()}</p>`;
+        
+        // Test 2: Load MesoNet
+        statusDiv.textContent = 'Loading MesoNet...';
+        const mesonet = await tf.loadLayersModel('/models/mesonet/model.json');
+        resultsDiv.innerHTML += '<p>✅ MesoNet4 loaded successfully</p>';
+        resultsDiv.innerHTML += `<p>Input shape: ${JSON.stringify(mesonet.inputs[0].shape)}</p>`;
+        resultsDiv.innerHTML += `<p>Output shape: ${JSON.stringify(mesonet.outputs[0].shape)}</p>`;
+        
+        // Test 3: Run inference with dummy data
+        statusDiv.textContent = 'Testing inference...';
+        const dummyInput = tf.randomNormal([1, 256, 256, 3]);
+        const prediction = mesonet.predict(dummyInput);
+        const result = await prediction.data();
+        resultsDiv.innerHTML += `<p>✅ Inference successful! Output: ${result[0].toFixed(4)}</p>`;
+        
+        // Cleanup
+        dummyInput.dispose();
+        prediction.dispose();
+        
+        // Test 4: Try loading MobileNet (optional)
+        statusDiv.textContent = 'Testing MobileNet...';
+        try {
+          const mobilenet = await tf.loadGraphModel(
+            'https://tfhub.dev/google/tfjs-model/imagenet/mobilenet_v2_100_224/feature_vector/3/default/1',
+            { fromTFHub: true }
+          );
+          resultsDiv.innerHTML += '<p>✅ MobileNetV2 loaded successfully</p>';
+        } catch (e) {
+          resultsDiv.innerHTML += '<p>⚠️  MobileNetV2 unavailable (expected if offline)</p>';
+        }
+        
+        statusDiv.textContent = '✅ All tests passed!';
+        statusDiv.style.color = 'green';
+        statusDiv.style.fontWeight = 'bold';
+        
+      } catch (error) {
+        statusDiv.textContent = '❌ Test failed!';
+        statusDiv.style.color = 'red';
+        resultsDiv.innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+        console.error('Test error:', error);
+      }
+    }
+    
+    testModels();
+  </script>
+</body>
+</html>
