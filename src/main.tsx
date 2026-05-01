@@ -6,11 +6,12 @@ import { queryClient } from "./lib/queryClient";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import App from "./App.tsx";
 import "./index.css";
-import { preloadOpenCV } from "./lib/opencv/preloader";
+import { preloadAllModels } from "./lib/preloader";
 
-// Start preloading OpenCV.js immediately
-preloadOpenCV().catch(err => {
-  console.error('Failed to preload OpenCV:', err);
+// Start preloading all models immediately (non-blocking)
+preloadAllModels().catch(err => {
+  console.error('Failed to preload models:', err);
+  // App will still work, models will load on-demand
 });
 
 createRoot(document.getElementById("root")!).render(
