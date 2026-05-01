@@ -15,27 +15,24 @@
 
 declare const cv: any;
 
+import { getOpenCVLoadPromise } from './preloader';
+
 /**
  * Wait for OpenCV to be ready (with timeout)
+ * Uses the preloader promise if available
  */
-export const waitForOpenCV = (timeoutMs = 15000): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (typeof cv !== 'undefined' && cv.Mat) {
-      resolve();
-      return;
-    }
-
-    const startTime = Date.now();
-    const checkInterval = setInterval(() => {
-      if (typeof cv !== 'undefined' && cv.Mat) {
-        clearInterval(checkInterval);
-        resolve();
-      } else if (Date.now() - startTime > timeoutMs) {
-        clearInterval(checkInterval);
-        reject(new Error('OpenCV.js failed to load within timeout. Check your network connection.'));
-      }
-    }, 100);
-  });
+export const waitForOpenCV = async (timeoutMs = 30000): Promise<void> => {
+  try {
+    // Try to use the preloader promise first
+    await Promise.race([
+      getOpenCVLoadPromise(),
+      new Promise<void>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), timeoutMs)
+      )
+    ]);
+  } catch (error) {
+    throw new Error(`OpenCV.js failed to load within ${timeoutMs}ms. Please refresh the page and try again.`);
+  }
 };
 
 /**

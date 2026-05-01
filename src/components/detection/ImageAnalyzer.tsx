@@ -105,7 +105,7 @@ const ImageAnalyzer = () => {
       performanceMonitor.startMark('image-loading');
       const [img] = await Promise.all([
         loadImage(selectedFile),
-        waitForOpenCV(),
+        waitForOpenCV(30000), // Increase timeout to 30 seconds
       ]);
       drawImageScaled(canvas, img);
       setImageDimensions({ width: img.width, height: img.height });
@@ -314,7 +314,17 @@ const ImageAnalyzer = () => {
       toast.success('Analysis complete');
     } catch (error) {
       console.error('Analysis error:', error);
-      toast.error('Analysis failed. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Analysis failed: ${errorMessage}`);
+      
+      // Set a minimal result to show something went wrong
+      setResult({
+        isDeepfake: false,
+        confidence: 0,
+        scores: {},
+        anomalies: ['analysis_error'],
+        modelsUsed: [],
+      });
     } finally {
       setIsAnalyzing(false);
     }

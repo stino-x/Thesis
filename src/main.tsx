@@ -6,7 +6,12 @@ import { queryClient } from "./lib/queryClient";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import App from "./App.tsx";
 import "./index.css";
+import { preloadOpenCV } from "./lib/opencv/preloader";
 
+// Start preloading OpenCV.js immediately
+preloadOpenCV().catch(err => {
+  console.error('Failed to preload OpenCV:', err);
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
