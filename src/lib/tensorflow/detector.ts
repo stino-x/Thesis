@@ -33,8 +33,6 @@ type NormalizedLandmark = { x: number; y: number; z: number };
 
 export interface ModelAvailability {
   mesonet: boolean;
-  xception: boolean;
-  cnnDetector: boolean;
   mobilenet: boolean;
 }
 
@@ -43,10 +41,6 @@ export interface DetectionResult {
   confidence: number;
   scores: {
     mesonet?: number;
-    xception?: number;
-    xceptionOnnx?: number;
-    efficientnet?: number;
-    cnnDetector?: number;
     mobilenet?: number;
     faceMesh?: number;
     texture?: number;
@@ -80,11 +74,6 @@ export class DeepfakeDetector {
   // MesoNet4 — specialized for classic face-swaps
   private mesonet: tf.LayersModel | null = null;
 
-  // XceptionNet fine-tuned on FaceForensics++ — face-swap + reenactment
-  private xception: tf.GraphModel | null = null;
-
-  // CNNDetector (Wang et al. 2020) — GAN fingerprint detection
-  private cnnDetector: tf.GraphModel | null = null;
 
   // MobileNetV2 fallback — general feature extraction
   private mobileNet: tf.GraphModel | null = null;
@@ -94,8 +83,6 @@ export class DeepfakeDetector {
 
   readonly availability: ModelAvailability = {
     mesonet: false,
-    xception: false,
-    cnnDetector: false,
     mobilenet: false,
   };
 
@@ -126,13 +113,11 @@ export class DeepfakeDetector {
 
       await Promise.allSettled([
         this.loadMesoNet(),
-        this.loadXception(),
-        this.loadCNNDetector(),
         this.loadMobileNet(),
       ]);
 
       const loaded = Object.values(this.availability).filter(Boolean).length;
-      console.log(`✅ Detector ready — ${loaded}/4 models loaded`, this.availability);
+      console.log(`✅ Detector ready — ${loaded}/2 TF.js models loaded (ONNX models load separately)`, this.availability);
       this.isInitialized = true;
     } catch (error) {
       console.error('Detector initialization error:', error);
@@ -150,25 +135,6 @@ export class DeepfakeDetector {
     }
   }
 
-  private async loadXception(): Promise<void> {
-    try {
-      this.xception = await tf.loadGraphModel('/models/xception/model.json');
-      this.availability.xception = true;
-      console.log('✅ XceptionNet loaded (299×299, FF++ face-swaps + reenactment)');
-    } catch {
-      console.warn('⚠️  XceptionNet not found at /models/xception/model.json — run scripts/convert_models.py to generate it');
-    }
-  }
-
-  private async loadCNNDetector(): Promise<void> {
-    try {
-      this.cnnDetector = await tf.loadGraphModel('/models/cnndetector/model.json');
-      this.availability.cnnDetector = true;
-      console.log('✅ CNNDetector loaded (256×256, GAN fingerprints)');
-    } catch {
-      console.warn('⚠️  CNNDetector not found at /models/cnndetector/model.json — run scripts/convert_models.py to generate it');
-    }
-  }
 
   private async loadMobileNet(): Promise<void> {
     try {
@@ -195,7 +161,7 @@ export class DeepfakeDetector {
    * Grouped ensemble — runs all available models, groups them by specialty,
    * then combines group scores. Adapts automatically to which models loaded.
    *
-   * Group A (face manipulation): MesoNet, ViT-Exp, ViT-v2, DeepfakeDetector
+   * Group A (face manipulation): MesoNet, ViT-Exp, ViT-v2, DeepfakeDetector, Xception, EfficientNet-B4, ResNet50
    * Group B (AI-generated):      SwinV2-AI-Detector
    * Group C (forensic/texture):  TextureHeuristic, MobileNet fallback
    */
@@ -223,25 +189,6 @@ export class DeepfakeDetector {
       } catch (e) { console.error('MesoNet error:', e); }
     }
 
-    if (this.xception) {
-      try {
-        const score = await this.runXception(imageTensor);
-        scores.xception = score * 100;
-        groupA.push([score, 2.0]); // strong face-swap model
-        modelsUsed.push('XceptionNet');
-        if (score > 0.7) anomalies.push('xception_high_score');
-      } catch (e) { console.error('XceptionNet error:', e); }
-    }
-
-    if (this.cnnDetector) {
-      try {
-        const score = await this.runCNNDetector(imageTensor);
-        scores.cnnDetector = score * 100;
-        groupA.push([score, 1.5]); // GAN fingerprints
-        modelsUsed.push('CNNDetector');
-        if (score > 0.7) anomalies.push('gan_fingerprint_detected');
-      } catch (e) { console.error('CNNDetector error:', e); }
-    }
 
     // ── ONNX models — split into groups by specialty ──────────────────────────
 
@@ -251,7 +198,7 @@ export class DeepfakeDetector {
         const eyePoints = faceLandmarks ? eyePointsFromLandmarks(faceLandmarks) : undefined;
         const onnx = await detectWithOnnx(canvas, bbox, eyePoints);
 
-        // Group A: face-specific detectors
+        // Group A: face-specific detectors (7 models total)
         if (onnx.vitDeepfakeExp?.available) {
           scores.vitDeepfakeExp = onnx.vitDeepfakeExp.score * 100;
           groupA.push([onnx.vitDeepfakeExp.score, 3.0]); // best single model, highest weight
@@ -269,6 +216,24 @@ export class DeepfakeDetector {
           groupA.push([onnx.deepfakeDetector.score, 1.5]);
           modelsUsed.push('DeepfakeDetector-ONNX');
           if (onnx.deepfakeDetector.score > 0.7) anomalies.push('deepfake_signal');
+        }
+        if (onnx.xceptionNet?.available) {
+          scores.xceptionNet = onnx.xceptionNet.score * 100;
+          groupA.push([onnx.xceptionNet.score, 2.5]); // FaceForensics++ champion
+          modelsUsed.push('Xception');
+          if (onnx.xceptionNet.score > 0.7) anomalies.push('xception_signal');
+        }
+        if (onnx.efficientnetB4?.available) {
+          scores.efficientnetB4 = onnx.efficientnetB4.score * 100;
+          groupA.push([onnx.efficientnetB4.score, 2.5]); // powerful model, high accuracy
+          modelsUsed.push('EfficientNet-B4');
+          if (onnx.efficientnetB4.score > 0.7) anomalies.push('efficientnet_signal');
+        }
+        if (onnx.resnet50?.available) {
+          scores.resnet50 = onnx.resnet50.score * 100;
+          groupA.push([onnx.resnet50.score, 2.0]); // balanced model
+          modelsUsed.push('ResNet50');
+          if (onnx.resnet50.score > 0.7) anomalies.push('resnet_signal');
         }
 
         // Group B: AI-generated content detector
@@ -435,8 +400,8 @@ export class DeepfakeDetector {
 
       const featureResult = await this.detectFromFeatures(features);
 
-      // CNN gets more weight when real models are loaded
-      const cnnWeight = imageResult.modelsUsed.some(m => ['XceptionNet', 'CNNDetector', 'MesoNet4', 'EfficientNet-B4', 'XceptionNet-ONNX'].includes(m)) ? 0.75 : 0.5;
+      // Visual models get more weight when real models are loaded
+      const cnnWeight = imageResult.modelsUsed.some(m => ['MesoNet4', 'ViT-Deepfake-Exp', 'ViT-Deepfake-v2', 'SwinV2-AI-Detector', 'DeepfakeDetector-ONNX'].includes(m)) ? 0.75 : 0.5;
       const ensembleScore = (imageResult.confidence * cnnWeight) + (featureResult.confidence * (1 - cnnWeight));
 
       return {
@@ -524,45 +489,6 @@ export class DeepfakeDetector {
     }
   }
 
-  private async runXception(imageTensor: tf.Tensor): Promise<number> {
-    // XceptionNet expects 299×299, normalized to [-1, 1]
-    const preprocessed = tf.tidy(() => {
-      let t = imageTensor;
-      if (t.shape.length === 4) t = tf.squeeze(t, [0]) as tf.Tensor3D;
-      const resized = tf.image.resizeBilinear(t as tf.Tensor3D, [299, 299]);
-      // Normalize to [-1, 1] (Xception convention)
-      const normalized = resized.mul(2).sub(1);
-      return normalized.expandDims(0) as tf.Tensor4D;
-    });
-    try {
-      const prediction = this.xception!.predict(preprocessed) as tf.Tensor;
-      const data = await prediction.data();
-      prediction.dispose();
-      // Output: [real_prob, fake_prob] or single sigmoid — handle both
-      return data.length === 2 ? data[1] : data[0];
-    } finally {
-      preprocessed.dispose();
-    }
-  }
-
-  private async runCNNDetector(imageTensor: tf.Tensor): Promise<number> {
-    // CNNDetector expects 256×256, normalized to [-1, 1]
-    const preprocessed = tf.tidy(() => {
-      let t = imageTensor;
-      if (t.shape.length === 4) t = tf.squeeze(t, [0]) as tf.Tensor3D;
-      const resized = tf.image.resizeBilinear(t as tf.Tensor3D, [256, 256]);
-      const normalized = resized.mul(2).sub(1);
-      return normalized.expandDims(0) as tf.Tensor4D;
-    });
-    try {
-      const prediction = this.cnnDetector!.predict(preprocessed) as tf.Tensor;
-      const data = await prediction.data();
-      prediction.dispose();
-      return data.length === 2 ? data[1] : data[0];
-    } finally {
-      preprocessed.dispose();
-    }
-  }
 
   private async runMobileNet(imageTensor: tf.Tensor): Promise<number> {
     const preprocessed = this.preprocessForModel(imageTensor, [224, 224]);
@@ -828,8 +754,6 @@ export class DeepfakeDetector {
 
   dispose(): void {
     this.mesonet?.dispose();
-    this.xception?.dispose();
-    this.cnnDetector?.dispose();
     this.mobileNet?.dispose();
     this.isInitialized = false;
   }

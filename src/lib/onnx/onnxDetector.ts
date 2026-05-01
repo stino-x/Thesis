@@ -18,6 +18,9 @@ const MODEL_URLS = {
   vitDeepfakeV2:    `${HF_BASE}/vit_deepfake_v2.onnx`,
   deepfakeDetector: `${HF_BASE}/deepfake_detector.onnx`,
   aiDetector:       `${HF_BASE}/ai_detector_int8.onnx`,
+  efficientnetB4:   `${HF_BASE}/efficientnet_b4.onnx`,    // Powerful model (95-97% accuracy)
+  xceptionNet:      `${HF_BASE}/xception_net.onnx`,       // FaceForensics++ champion (97-99%)
+  resnet50:         `${HF_BASE}/resnet50.onnx`,           // Balanced model (94-96%)
 } as const;
 
 // Required for ONNX Runtime multi-threaded WASM
@@ -36,6 +39,9 @@ export interface OnnxDetectionResult {
   vitDeepfakeV2?:    OnnxModelResult;
   deepfakeDetector?: OnnxModelResult;
   aiDetector?:       OnnxModelResult;
+  efficientnetB4?:   OnnxModelResult;
+  xceptionNet?:      OnnxModelResult;
+  resnet50?:         OnnxModelResult;
   anomalies: string[];
 }
 
@@ -144,11 +150,9 @@ export async function initOnnxDetector(): Promise<void> {
 // ─── Preprocessing ────────────────────────────────────────────────────────────
 
 /**
- * Preprocess canvas → Float32 tensor [1, 3, H, W] with ImageNet normalization.
- * Center-crops to square first to preserve face geometry — stretching to
- * a non-square aspect ratio degrades ViT accuracy significantly.
+ * Preprocess canvas → Float32 tensor [1, 3, H, W] with normalization.
  */
-function canvasToTensor(canvas: HTMLCanvasElement, size: number): ort.Tensor {
+function canvasToTensor(canvas: HTMLCanvasElement, size: number, normalize: 'imagenet' | 'range1' = 'imagenet'): ort.Tensor {
   const tmp    = document.createElement('canvas');
   tmp.width    = tmp.height = size;
   const tmpCtx = tmp.getContext('2d')!;
@@ -162,14 +166,22 @@ function canvasToTensor(canvas: HTMLCanvasElement, size: number): ort.Tensor {
   const { data } = tmpCtx.getImageData(0, 0, size, size);
   const float32  = new Float32Array(3 * size * size);
 
-  // ImageNet mean/std normalization
-  const mean = [0.485, 0.456, 0.406];
-  const std  = [0.229, 0.224, 0.225];
+  if (normalize === 'range1') {
+    for (let i = 0; i < size * size; i++) {
+      float32[i]                   = (data[i * 4]     / 255) * 2 - 1; // R
+      float32[size * size + i]     = (data[i * 4 + 1] / 255) * 2 - 1; // G
+      float32[size * size * 2 + i] = (data[i * 4 + 2] / 255) * 2 - 1; // B
+    }
+  } else {
+    // ImageNet mean/std normalization
+    const mean = [0.485, 0.456, 0.406];
+    const std  = [0.229, 0.224, 0.225];
 
-  for (let i = 0; i < size * size; i++) {
-    float32[i]                   = (data[i * 4]     / 255 - mean[0]) / std[0]; // R
-    float32[size * size + i]     = (data[i * 4 + 1] / 255 - mean[1]) / std[1]; // G
-    float32[size * size * 2 + i] = (data[i * 4 + 2] / 255 - mean[2]) / std[2]; // B
+    for (let i = 0; i < size * size; i++) {
+      float32[i]                   = (data[i * 4]     / 255 - mean[0]) / std[0]; // R
+      float32[size * size + i]     = (data[i * 4 + 1] / 255 - mean[1]) / std[1]; // G
+      float32[size * size * 2 + i] = (data[i * 4 + 2] / 255 - mean[2]) / std[2]; // B
+    }
   }
 
   return new ort.Tensor('float32', float32, [1, 3, size, size]);
@@ -180,13 +192,14 @@ function canvasToTensor(canvas: HTMLCanvasElement, size: number): ort.Tensor {
 async function runModel(
   key: ModelKey,
   canvas: HTMLCanvasElement,
-  size: number
+  size: number,
+  normalize: 'imagenet' | 'range1' = 'imagenet'
 ): Promise<OnnxModelResult> {
   const session = await getSession(key);
   if (!session) return { score: 0, available: false };
 
   try {
-    const tensor     = canvasToTensor(canvas, size);
+    const tensor     = canvasToTensor(canvas, size, normalize);
     const inputName  = session.inputNames[0];
     const output     = await session.run({ [inputName]: tensor });
     const outputData = output[session.outputNames[0]].data as Float32Array;
@@ -216,20 +229,26 @@ export async function detectWithOnnx(
 ): Promise<OnnxDetectionResult> {
   const anomalies: string[] = [];
 
-  // Crop + align face before running ViT models
+  // Crop + align face before running ViT/Xception/EfficientNet models
   const faceCanvas = cropFaceFromCanvas(canvas, faceBbox, 0.20, eyePoints);
 
-  const [vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector] = await Promise.all([
-    runModel('vitDeepfakeExp',   faceCanvas, 224),  // face-specific — use crop
-    runModel('vitDeepfakeV2',    faceCanvas, 224),  // face-specific — use crop
-    runModel('deepfakeDetector', faceCanvas, 224),  // face-specific — use crop
-    runModel('aiDetector',       canvas,     224),  // AI-gen detector — full image is correct
+  const [vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, xceptionNet, efficientnetB4, resnet50] = await Promise.all([
+    runModel('vitDeepfakeExp',   faceCanvas, 224),
+    runModel('vitDeepfakeV2',    faceCanvas, 224),
+    runModel('deepfakeDetector', faceCanvas, 224),
+    runModel('aiDetector',       canvas,     224),
+    runModel('xceptionNet',      faceCanvas, 299, 'range1'),
+    runModel('efficientnetB4',   faceCanvas, 380),
+    runModel('resnet50',         faceCanvas, 224),
   ]);
 
   if (vitDeepfakeExp.available   && vitDeepfakeExp.score   > 0.7) anomalies.push('vit_deepfake_signal');
   if (vitDeepfakeV2.available    && vitDeepfakeV2.score    > 0.7) anomalies.push('vit_deepfake_v2_signal');
   if (deepfakeDetector.available && deepfakeDetector.score > 0.7) anomalies.push('deepfake_signal');
   if (aiDetector.available       && aiDetector.score       > 0.7) anomalies.push('ai_generation_signal');
+  if (xceptionNet.available      && xceptionNet.score      > 0.7) anomalies.push('xception_signal');
+  if (efficientnetB4.available   && efficientnetB4.score   > 0.7) anomalies.push('efficientnet_signal');
+  if (resnet50.available         && resnet50.score         > 0.7) anomalies.push('resnet_signal');
 
-  return { vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, anomalies };
+  return { vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, xceptionNet, efficientnetB4, resnet50, anomalies };
 }
