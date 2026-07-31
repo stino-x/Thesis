@@ -10,6 +10,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
+  console.log('[ProtectedRoute] user:', user ? user.email : 'null', 'loading:', loading, 'path:', location.pathname)
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -22,6 +24,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
+    console.log('[ProtectedRoute] No user, redirecting to /login')
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

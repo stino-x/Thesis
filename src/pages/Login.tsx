@@ -21,19 +21,21 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Redirect to home if already logged in or after successful login
+  // Redirect if user is already authenticated
   useEffect(() => {
-    if (user) {
+    console.log('[Login] useEffect - user:', user ? user.email : 'null', 'loading:', loading)
+    if (user && !loading) {
       const from = (location.state as any)?.from?.pathname || '/'
+      console.log('[Login] Redirecting to:', from)
       navigate(from, { replace: true })
     }
-  }, [user, navigate, location])
+  }, [user, loading, navigate, location])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { error } = await signIn(email, password)
+    const { data, error } = await signIn(email, password)
 
     if (error) {
       let description = error.message
@@ -46,9 +48,13 @@ export default function Login() {
       
       toast.error(description)
       setLoading(false)
-    } else {
+    } else if (data?.session) {
       toast.success('Welcome back!')
-      // Auth state will update via useEffect and trigger navigation
+      // Session established, user state will update and useEffect will handle redirect
+    } else {
+      // Unexpected: no error but no session either
+      toast.error('An unexpected error occurred. Please try again.')
+      setLoading(false)
     }
   }
 const handleOAuthSignIn = async (provider: 'google' | 'github') => {
