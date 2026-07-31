@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,8 +17,17 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<'google' | 'github' | null>(null)
-  const { signIn, signInWithOAuth } = useAuth()
+  const { signIn, signInWithOAuth, user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Redirect to home if already logged in or after successful login
+  useEffect(() => {
+    if (user) {
+      const from = (location.state as any)?.from?.pathname || '/'
+      navigate(from, { replace: true })
+    }
+  }, [user, navigate, location])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,7 +48,7 @@ export default function Login() {
       setLoading(false)
     } else {
       toast.success('Welcome back!')
-      navigate('/')
+      // Auth state will update via useEffect and trigger navigation
     }
   }
 const handleOAuthSignIn = async (provider: 'google' | 'github') => {
