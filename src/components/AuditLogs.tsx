@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { auditLogger } from '@/lib/auditLogger';
 import { AuditLog, AuditLogFilters, AuditLogStats } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
@@ -317,7 +317,7 @@ const AuditLogs = () => {
                   <Select
                     value={filters.detection_type || 'all'}
                     onValueChange={(value) => 
-                      setFilters({ ...filters, detection_type: value === 'all' ? undefined : value as any })
+                      setFilters({ ...filters, detection_type: value === 'all' ? undefined : value as 'image' | 'video' | 'webcam' })
                     }
                   >
                     <SelectTrigger id="detection-type">
@@ -337,7 +337,7 @@ const AuditLogs = () => {
                   <Select
                     value={filters.detection_result || 'all'}
                     onValueChange={(value) => 
-                      setFilters({ ...filters, detection_result: value === 'all' ? undefined : value as any })
+                      setFilters({ ...filters, detection_result: value === 'all' ? undefined : value as 'deepfake' | 'real' | 'uncertain' })
                     }
                   >
                     <SelectTrigger id="result-filter">
