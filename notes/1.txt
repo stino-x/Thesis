@@ -1,0 +1,1010 @@
+github client secret: b4a9b2317963c6116ed171331c238a09b1c29304
+
+
+github  Client ID: Ov23liLZC3lp9lEgpPQn
+
+
+
+
+[
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":53817139,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb980-898a-7dfe-acf4-10bb95f97574\",\"status\":200,\"time\":\"2026-07-31T18:47:16Z\"}",
+    "id": "b52bf441-6759-4d80-9a84-174160b59606",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785523636000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"action\":\"login\",\"instance_id\":\"00000000-0000-0000-0000-000000000000\",\"level\":\"info\",\"login_method\":\"oauth\",\"metering\":true,\"msg\":\"Login\",\"provider\":\"github\",\"time\":\"2026-07-31T18:45:11Z\",\"user_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\"}",
+    "id": "d1ba840e-0263-4835-b06e-1921727b2a59",
+    "level": "info",
+    "msg": "Login",
+    "path": "",
+    "status": "",
+    "timestamp": 1785523511000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"auth_event\":{\"action\":\"login\",\"actor_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\",\"actor_name\":\"Iheagwara Augustine\",\"actor_username\":\"iheagwarqaustin214@gmail.com\",\"actor_via_sso\":false,\"log_type\":\"account\",\"traits\":{\"provider\":\"github\"}},\"component\":\"api\",\"duration\":1233793796,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb97e-9a7c-7b35-a42d-1bcaf2c13c13\",\"status\":302,\"time\":\"2026-07-31T18:45:11Z\"}",
+    "id": "d439d239-361d-4ccd-9ce8-e73785ea1286",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785523511000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":23943204,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb97d-9504-720a-b783-79350d3292e1\",\"status\":302,\"time\":\"2026-07-31T18:44:03Z\"}",
+    "id": "02e78710-f256-4bee-8d16-45cd994f90cd",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785523443000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb97d-9504-720a-b783-79350d3292e1\",\"time\":\"2026-07-31T18:44:02Z\"}",
+    "id": "12f8292c-c3d5-4694-a20c-104d0300b85a",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785523442000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":51618445,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb97c-4484-76a6-8331-ac9c9fa0d507\",\"status\":200,\"time\":\"2026-07-31T18:42:37Z\"}",
+    "id": "8c64adab-667f-4398-a7c3-e3de135a3669",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785523357000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":65140400,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb972-aaa3-7050-b6a7-ea2e5b2f6e55\",\"status\":200,\"time\":\"2026-07-31T18:32:08Z\"}",
+    "id": "862a72e2-032b-4382-9edd-8aba200b1cb5",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522728000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":921830,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb971-5b3a-7c32-8e71-e2303a07175f\",\"status\":200,\"time\":\"2026-07-31T18:30:41Z\"}",
+    "id": "dd3fcccb-cc83-4dfe-ba70-fa70a3c14160",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522641000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"auth_event\":{\"action\":\"login\",\"actor_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\",\"actor_name\":\"Iheagwara Augustine\",\"actor_username\":\"iheagwarqaustin214@gmail.com\",\"actor_via_sso\":false,\"log_type\":\"account\",\"traits\":{\"provider\":\"github\"}},\"component\":\"api\",\"duration\":1321330582,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb971-1fba-7f7b-8221-c273fe66968a\",\"status\":302,\"time\":\"2026-07-31T18:30:27Z\"}",
+    "id": "c803d9df-aab2-40c6-bfd7-38bda9bb2e34",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785522627000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"action\":\"login\",\"instance_id\":\"00000000-0000-0000-0000-000000000000\",\"level\":\"info\",\"login_method\":\"oauth\",\"metering\":true,\"msg\":\"Login\",\"provider\":\"github\",\"time\":\"2026-07-31T18:30:27Z\",\"user_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\"}",
+    "id": "6026c5e4-bbc4-452f-bed5-a1d52bfd2c73",
+    "level": "info",
+    "msg": "Login",
+    "path": "",
+    "status": "",
+    "timestamp": 1785522627000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb971-18f8-7481-b08c-b27aee1da291\",\"time\":\"2026-07-31T18:30:24Z\"}",
+    "id": "9f3720ab-20c2-40ec-80b9-71c74a15492c",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785522624000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":2264429,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb971-18f8-7481-b08c-b27aee1da291\",\"status\":302,\"time\":\"2026-07-31T18:30:24Z\"}",
+    "id": "20cc8330-3e5a-4ba2-89dd-11a9bb7407d5",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785522624000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"reloader\",\"grace_period_duration\":\"2s\",\"level\":\"info\",\"msg\":\"reloading api with new configuration\",\"notify_enabled\":true,\"poller_enabled\":false,\"poller_interval\":\"10s\",\"signal_enabled\":false,\"signal_number\":10,\"time\":\"2026-07-31T18:29:25Z\"}",
+    "id": "b97cba73-7c6d-4896-a3bb-b11a927b12a3",
+    "level": "info",
+    "msg": "reloading api with new configuration",
+    "path": "",
+    "status": "",
+    "timestamp": 1785522565000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T18:29:25Z\"}",
+    "id": "fd82ffe3-6f0e-41fa-9009-4200fc34a9f5",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785522565000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"config_conn_max_idle_time\":\"1m0s\",\"config_conn_max_lifetime\":\"0s\",\"config_conn_percentage\":0,\"config_max_idle_pool_size\":10,\"config_max_pool_size\":10,\"level\":\"info\",\"limit_conn_max_idle_time\":\"1m0s\",\"limit_conn_max_lifetime\":\"0s\",\"limit_max_idle_conns\":10,\"limit_max_open_conns\":10,\"limit_strategy\":\"fixed\",\"msg\":\"applying connection limits to db using the \\\"fixed\\\" strategy\",\"server_max_conns\":60,\"time\":\"2026-07-31T18:29:25Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "b5f5d2ab-0005-441c-b64b-048535fe73bb",
+    "level": "info",
+    "msg": "applying connection limits to db using the \"fixed\" strategy",
+    "path": "",
+    "status": "",
+    "timestamp": 1785522565000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T18:29:25Z\"}",
+    "id": "3bbc4a83-ac92-4e79-950d-a216c14b07dd",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785522565000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":5979976,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96f-cc65-7c2b-ae97-eec4bc52c5ac\",\"status\":200,\"time\":\"2026-07-31T18:28:59Z\"}",
+    "id": "21eff6ee-af2b-4fda-9f8c-98b3c6346d06",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522539000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":5878740,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96e-409e-70d2-b924-427433d03df1\",\"status\":200,\"time\":\"2026-07-31T18:27:18Z\"}",
+    "id": "8bb948b3-ff91-4277-b3bf-3a81dd179db8",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522438000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":834857,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-f3bd-7ea8-93f9-b5917f29ccf0\",\"status\":200,\"time\":\"2026-07-31T18:25:53Z\"}",
+    "id": "a43d65f1-9c79-4e46-bf01-28349236dff4",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522353000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":693853683,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-cd59-7c90-a6f9-d853eb9369e1\",\"status\":302,\"time\":\"2026-07-31T18:25:44Z\"}",
+    "id": "4a782d6a-977d-42b5-951a-8489b0a65b3c",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785522344000000
+  },
+  {
+    "error": "oauth2: \"incorrect_client_credentials\" \"The client_id and/or client_secret passed are incorrect.\" \"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\"",
+    "event_message": "{\"component\":\"api\",\"error\":\"oauth2: \\\"incorrect_client_credentials\\\" \\\"The client_id and/or client_secret passed are incorrect.\\\" \\\"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\\\"\",\"level\":\"error\",\"method\":\"GET\",\"msg\":\"500: Unable to exchange external code: 8c21\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-cd59-7c90-a6f9-d853eb9369e1\",\"time\":\"2026-07-31T18:25:44Z\"}",
+    "id": "72d03dfe-621a-48ac-b936-46dc7656c33f",
+    "level": "error",
+    "msg": "500: Unable to exchange external code: 8c21",
+    "path": "/callback",
+    "status": "",
+    "timestamp": 1785522344000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-c893-7d27-8105-e82c25af8748\",\"time\":\"2026-07-31T18:25:42Z\"}",
+    "id": "e34160a8-e51b-478f-81a4-b0b5781fa154",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785522342000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":2293710,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-c893-7d27-8105-e82c25af8748\",\"status\":302,\"time\":\"2026-07-31T18:25:42Z\"}",
+    "id": "7a9d3ff8-3846-4322-adcb-fc80d76c382c",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785522342000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"auth_event\":{\"action\":\"login\",\"actor_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\",\"actor_name\":\"austin iheagwarq\",\"actor_username\":\"iheagwarqaustin214@gmail.com\",\"actor_via_sso\":false,\"log_type\":\"account\",\"traits\":{\"provider\":\"google\"}},\"component\":\"api\",\"duration\":120361360,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-798d-7d79-a64e-627f5b2d06e4\",\"status\":302,\"time\":\"2026-07-31T18:25:21Z\"}",
+    "id": "8b1887e0-c2ff-4cc7-88a1-695833d3092c",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785522321000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"action\":\"login\",\"instance_id\":\"00000000-0000-0000-0000-000000000000\",\"level\":\"info\",\"login_method\":\"oauth\",\"metering\":true,\"msg\":\"Login\",\"provider\":\"google\",\"time\":\"2026-07-31T18:25:21Z\",\"user_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\"}",
+    "id": "508e75fb-4ffe-4869-9015-dadf46f90115",
+    "level": "info",
+    "msg": "Login",
+    "path": "",
+    "status": "",
+    "timestamp": 1785522321000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"google\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-6a9b-78cd-99ee-67d7af2b99a2\",\"time\":\"2026-07-31T18:25:18Z\"}",
+    "id": "a6a9829b-1735-46da-a0dd-28fc2bdc3014",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785522318000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":4351610,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96c-6a9b-78cd-99ee-67d7af2b99a2\",\"status\":302,\"time\":\"2026-07-31T18:25:18Z\"}",
+    "id": "f33ca424-4186-45f9-8fef-dd274266f438",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785522318000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":18053485,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96b-e4d6-7bf7-938c-485f144ef990\",\"status\":200,\"time\":\"2026-07-31T18:24:43Z\"}",
+    "id": "08b23a9c-83cc-44c9-8a01-945de5a548fd",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522283000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":741602678,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96a-f439-7aaf-a521-a1030d19923e\",\"status\":302,\"time\":\"2026-07-31T18:23:42Z\"}",
+    "id": "ba368b12-aece-45df-9fe6-bd969f471679",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785522222000000
+  },
+  {
+    "error": "oauth2: \"incorrect_client_credentials\" \"The client_id and/or client_secret passed are incorrect.\" \"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\"",
+    "event_message": "{\"component\":\"api\",\"error\":\"oauth2: \\\"incorrect_client_credentials\\\" \\\"The client_id and/or client_secret passed are incorrect.\\\" \\\"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\\\"\",\"level\":\"error\",\"method\":\"GET\",\"msg\":\"500: Unable to exchange external code: ee54\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96a-f439-7aaf-a521-a1030d19923e\",\"time\":\"2026-07-31T18:23:42Z\"}",
+    "id": "b2252c1a-94b5-414d-82d9-aad341b2ae63",
+    "level": "error",
+    "msg": "500: Unable to exchange external code: ee54",
+    "path": "/callback",
+    "status": "",
+    "timestamp": 1785522222000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96a-f0c0-7c31-93ed-5e23aaed6f3d\",\"time\":\"2026-07-31T18:23:41Z\"}",
+    "id": "d5590621-a92b-4d20-a3fa-87b9506cebec",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785522221000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":68368917,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96a-f0c0-7c31-93ed-5e23aaed6f3d\",\"status\":302,\"time\":\"2026-07-31T18:23:41Z\"}",
+    "id": "906c866b-861c-4715-8cbb-d8b6c36e2240",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785522221000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":1870626,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb96a-02a2-7036-8f0e-b55bc5fa1f82\",\"status\":200,\"time\":\"2026-07-31T18:22:40Z\"}",
+    "id": "1320c4ab-b832-40c3-9785-bfa27f61e375",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522160000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":699914631,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-b2ca-7be8-b210-66a849ec4293\",\"status\":302,\"time\":\"2026-07-31T18:22:20Z\"}",
+    "id": "c27564ae-3401-499d-8db9-8afb9507c9c2",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785522140000000
+  },
+  {
+    "error": "oauth2: \"incorrect_client_credentials\" \"The client_id and/or client_secret passed are incorrect.\" \"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\"",
+    "event_message": "{\"component\":\"api\",\"error\":\"oauth2: \\\"incorrect_client_credentials\\\" \\\"The client_id and/or client_secret passed are incorrect.\\\" \\\"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\\\"\",\"level\":\"error\",\"method\":\"GET\",\"msg\":\"500: Unable to exchange external code: c5ca\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-b2ca-7be8-b210-66a849ec4293\",\"time\":\"2026-07-31T18:22:20Z\"}",
+    "id": "aa84a221-d712-4c39-8747-3c0f220191f8",
+    "level": "error",
+    "msg": "500: Unable to exchange external code: c5ca",
+    "path": "/callback",
+    "status": "",
+    "timestamp": 1785522140000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":2081936,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-b0bb-7138-862c-1ac9cebe2019\",\"status\":302,\"time\":\"2026-07-31T18:22:19Z\"}",
+    "id": "8acd728f-be90-456b-90fe-5fca19d314c2",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785522139000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-b0bb-7138-862c-1ac9cebe2019\",\"time\":\"2026-07-31T18:22:19Z\"}",
+    "id": "cfd7eb79-6d76-4423-8a52-264fdda1660d",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785522139000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":838219732,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-7faa-7248-ac2a-1c619411fe2c\",\"status\":302,\"time\":\"2026-07-31T18:22:07Z\"}",
+    "id": "af49062e-2383-4338-9d5f-1e586c365a26",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785522127000000
+  },
+  {
+    "error": "oauth2: \"incorrect_client_credentials\" \"The client_id and/or client_secret passed are incorrect.\" \"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\"",
+    "event_message": "{\"component\":\"api\",\"error\":\"oauth2: \\\"incorrect_client_credentials\\\" \\\"The client_id and/or client_secret passed are incorrect.\\\" \\\"https://docs.github.com/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors/#incorrect-client-credentials\\\"\",\"level\":\"error\",\"method\":\"GET\",\"msg\":\"500: Unable to exchange external code: 5694\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-7faa-7248-ac2a-1c619411fe2c\",\"time\":\"2026-07-31T18:22:07Z\"}",
+    "id": "e3e1d73b-7484-47d9-83c9-33187504ea7d",
+    "level": "error",
+    "msg": "500: Unable to exchange external code: 5694",
+    "path": "/callback",
+    "status": "",
+    "timestamp": 1785522127000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-7d96-7ee1-8097-5950811cc907\",\"time\":\"2026-07-31T18:22:06Z\"}",
+    "id": "598dac85-d362-4e1b-8a8b-fcb634ccd5ce",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785522126000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":6955790,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb969-7d96-7ee1-8097-5950811cc907\",\"status\":302,\"time\":\"2026-07-31T18:22:06Z\"}",
+    "id": "a8d8c6d1-f249-4fd4-a75a-547ee8e5b7c5",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785522126000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":6165276,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb968-80c7-7a09-8732-c2141017be5f\",\"status\":200,\"time\":\"2026-07-31T18:21:01Z\"}",
+    "id": "452c820d-2339-48c8-a283-59f8472794a0",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785522061000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":862503,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb967-78c6-759b-ae33-26286a009830\",\"status\":200,\"time\":\"2026-07-31T18:19:53Z\"}",
+    "id": "dcef5145-bc55-4248-964e-42aeed37af5e",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785521993000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"github\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb966-c33e-7c64-a8a2-f3fcc875c7c3\",\"time\":\"2026-07-31T18:19:07Z\"}",
+    "id": "49efd7bd-57a0-445a-88d5-d0986b762628",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785521947000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":2248701,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb966-c33e-7c64-a8a2-f3fcc875c7c3\",\"status\":302,\"time\":\"2026-07-31T18:19:07Z\"}",
+    "id": "814f155b-9618-4710-a6f7-c5bc9e0823a5",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785521947000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"auth_event\":{\"action\":\"login\",\"actor_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\",\"actor_name\":\"austin iheagwarq\",\"actor_username\":\"iheagwarqaustin214@gmail.com\",\"actor_via_sso\":false,\"log_type\":\"account\",\"traits\":{\"provider\":\"google\"}},\"component\":\"api\",\"duration\":134833742,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb966-82bd-7aab-99aa-47639ada4c96\",\"status\":302,\"time\":\"2026-07-31T18:18:51Z\"}",
+    "id": "b04130ac-2673-437d-9ae6-e2e7f113a429",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785521931000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"action\":\"login\",\"instance_id\":\"00000000-0000-0000-0000-000000000000\",\"level\":\"info\",\"login_method\":\"oauth\",\"metering\":true,\"msg\":\"Login\",\"provider\":\"google\",\"time\":\"2026-07-31T18:18:51Z\",\"user_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\"}",
+    "id": "bdaf84d6-8e42-4611-959c-330dc7acd30f",
+    "level": "info",
+    "msg": "Login",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521931000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":32831133,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb966-7326-7f5f-bbdb-9e09fa94b876\",\"status\":302,\"time\":\"2026-07-31T18:18:47Z\"}",
+    "id": "a44497ff-1bd8-4207-b263-9c1dae03c083",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785521927000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"google\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb966-7326-7f5f-bbdb-9e09fa94b876\",\"time\":\"2026-07-31T18:18:47Z\"}",
+    "id": "9e655ec1-47b7-4565-bc3f-d1c96cd5e294",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785521927000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":4657124,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb966-5f35-7fc4-b01c-6b55ef7341e8\",\"status\":200,\"time\":\"2026-07-31T18:18:41Z\"}",
+    "id": "c79b1018-fc3b-4ef5-9fe8-f47ecdc67aaf",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785521921000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"config_conn_max_idle_time\":\"1m0s\",\"config_conn_max_lifetime\":\"0s\",\"config_conn_percentage\":0,\"config_max_idle_pool_size\":10,\"config_max_pool_size\":10,\"level\":\"info\",\"limit_conn_max_idle_time\":\"1m0s\",\"limit_conn_max_lifetime\":\"0s\",\"limit_max_idle_conns\":10,\"limit_max_open_conns\":10,\"limit_strategy\":\"fixed\",\"msg\":\"applying connection limits to db using the \\\"fixed\\\" strategy\",\"server_max_conns\":60,\"time\":\"2026-07-31T18:18:25Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "3ba1608a-6344-43f2-8031-acc351556f23",
+    "level": "info",
+    "msg": "applying connection limits to db using the \"fixed\" strategy",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521905000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T18:18:25Z\"}",
+    "id": "a5af2ba7-cc3f-4197-8878-d61b03549542",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521905000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T18:18:25Z\"}",
+    "id": "05c214ac-3c32-4efc-9c29-2aa965e72b52",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521905000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"reloader\",\"grace_period_duration\":\"2s\",\"level\":\"info\",\"msg\":\"reloading api with new configuration\",\"notify_enabled\":true,\"poller_enabled\":false,\"poller_interval\":\"10s\",\"signal_enabled\":false,\"signal_number\":10,\"time\":\"2026-07-31T18:18:25Z\"}",
+    "id": "57cbd0f2-229a-43ef-a5e2-bda2ab742913",
+    "level": "info",
+    "msg": "reloading api with new configuration",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521905000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":12988274,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/custom-providers\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb963-bfb1-7c8f-9b6d-0f4f22348671\",\"status\":200,\"time\":\"2026-07-31T18:15:49Z\"}",
+    "id": "d273307b-257a-4cd6-a069-5ed9dbce1199",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/custom-providers",
+    "status": "200",
+    "timestamp": 1785521749000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"action\":\"login\",\"instance_id\":\"00000000-0000-0000-0000-000000000000\",\"level\":\"info\",\"login_method\":\"oauth\",\"metering\":true,\"msg\":\"Login\",\"provider\":\"google\",\"time\":\"2026-07-31T18:14:16Z\",\"user_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\"}",
+    "id": "8e4a14ee-d3c0-4f68-b3e4-64ac64e70b88",
+    "level": "info",
+    "msg": "Login",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521656000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"auth_event\":{\"action\":\"login\",\"actor_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\",\"actor_name\":\"austin iheagwarq\",\"actor_username\":\"iheagwarqaustin214@gmail.com\",\"actor_via_sso\":false,\"log_type\":\"account\",\"traits\":{\"provider\":\"google\"}},\"component\":\"api\",\"duration\":71644762,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb962-53d6-7825-bebd-fa204a2a10b2\",\"status\":302,\"time\":\"2026-07-31T18:14:16Z\"}",
+    "id": "e91b4a1b-370b-414b-944c-b97a8ebe1844",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785521656000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"google\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb961-db9f-7fe5-aece-9bb8507f2e1e\",\"time\":\"2026-07-31T18:13:46Z\"}",
+    "id": "52c5e000-c62d-4adf-83d0-560ec72734e7",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785521626000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":2376836,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb961-db9f-7fe5-aece-9bb8507f2e1e\",\"status\":302,\"time\":\"2026-07-31T18:13:46Z\"}",
+    "id": "b1834bd7-5c35-44d9-88f5-2c6bc51610fd",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785521626000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"action\":\"login\",\"instance_id\":\"00000000-0000-0000-0000-000000000000\",\"level\":\"info\",\"login_method\":\"oauth\",\"metering\":true,\"msg\":\"Login\",\"provider\":\"google\",\"time\":\"2026-07-31T18:13:40Z\",\"user_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\"}",
+    "id": "75d79b91-5ecd-47a7-a120-144d8dd68c4a",
+    "level": "info",
+    "msg": "Login",
+    "path": "",
+    "status": "",
+    "timestamp": 1785521620000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"auth_event\":{\"action\":\"login\",\"actor_id\":\"0210c473-03d3-4a16-8ea7-446e931ba679\",\"actor_name\":\"austin iheagwarq\",\"actor_username\":\"iheagwarqaustin214@gmail.com\",\"actor_via_sso\":false,\"log_type\":\"account\",\"traits\":{\"provider\":\"google\"}},\"component\":\"api\",\"duration\":308068103,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/callback\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb961-c568-7c55-953b-78239855b59d\",\"status\":302,\"time\":\"2026-07-31T18:13:40Z\"}",
+    "id": "4717c6b8-5217-4ee0-a929-b6d486016b66",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/callback",
+    "status": "302",
+    "timestamp": 1785521620000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":84062899,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb961-b5ac-7fff-8a8a-5c639c584eec\",\"status\":302,\"time\":\"2026-07-31T18:13:36Z\"}",
+    "id": "a8ff2d85-f4aa-45d3-ad58-5a3ca51c41a2",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785521616000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"google\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb961-b5ac-7fff-8a8a-5c639c584eec\",\"time\":\"2026-07-31T18:13:36Z\"}",
+    "id": "5bb4155a-e677-4ce0-9a31-12670493accc",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785521616000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"method\":\"GET\",\"msg\":\"Redirecting to external provider\",\"path\":\"/authorize\",\"provider\":\"google\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb95d-46c4-7243-8d6f-d8fe929ef41e\",\"time\":\"2026-07-31T18:09:17Z\"}",
+    "id": "c7117e77-34de-4ccb-a992-2d72e2eb3f51",
+    "level": "info",
+    "msg": "Redirecting to external provider",
+    "path": "/authorize",
+    "status": "",
+    "timestamp": 1785521357000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":331046739,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/authorize\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb95d-46c4-7243-8d6f-d8fe929ef41e\",\"status\":302,\"time\":\"2026-07-31T18:09:17Z\"}",
+    "id": "1b7b4608-84da-4397-9439-3ab10f5f0717",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/authorize",
+    "status": "302",
+    "timestamp": 1785521357000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":82050968,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/admin/oauth/clients\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb957-3534-7eff-b7c3-fe2a218f0b9a\",\"status\":200,\"time\":\"2026-07-31T18:02:08Z\"}",
+    "id": "3ac8fab7-d356-402e-9e87-b2ed54e2bbc7",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/admin/oauth/clients",
+    "status": "200",
+    "timestamp": 1785520928000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"duration\":25509547,\"level\":\"info\",\"method\":\"GET\",\"msg\":\"request completed\",\"path\":\"/.well-known/openid-configuration\",\"referer\":\"https://detector-rho.vercel.app/\",\"remote_addr\":\"81.182.151.229\",\"request_id\":\"019fb957-3431-7f2f-ac4e-513239ce537c\",\"status\":200,\"time\":\"2026-07-31T18:02:08Z\"}",
+    "id": "8d537180-4057-49f9-bde6-4e95b492f732",
+    "level": "info",
+    "msg": "request completed",
+    "path": "/.well-known/openid-configuration",
+    "status": "200",
+    "timestamp": 1785520928000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T18:00:11Z\"}",
+    "id": "58bd1f70-d685-43fa-995c-a1149c846433",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"GoTrue API started on: localhost:9999\",\"time\":\"2026-07-31T18:00:11Z\",\"version\":\"v2.194.0\"}",
+    "id": "85148546-16be-40f1-aaa4-34f67319c1e7",
+    "level": "info",
+    "msg": "GoTrue API started on: localhost:9999",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"Go runtime metrics collection started\",\"time\":\"2026-07-31T18:00:11Z\"}",
+    "id": "25def53d-2b32-4ad5-8353-0198d563f3cf",
+    "level": "info",
+    "msg": "Go runtime metrics collection started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"prometheus server listening on 0.0.0.0:9122\",\"time\":\"2026-07-31T18:00:11Z\"}",
+    "id": "f5dffc22-63e3-48b6-bc5f-6bac06f346c8",
+    "level": "info",
+    "msg": "prometheus server listening on 0.0.0.0:9122",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"config_conn_max_idle_time\":\"1m0s\",\"config_conn_max_lifetime\":\"0s\",\"config_conn_percentage\":0,\"config_max_idle_pool_size\":10,\"config_max_pool_size\":10,\"level\":\"info\",\"limit_conn_max_idle_time\":\"1m0s\",\"limit_conn_max_lifetime\":\"0s\",\"limit_max_idle_conns\":10,\"limit_max_open_conns\":10,\"limit_strategy\":\"fixed\",\"msg\":\"applying connection limits to db using the \\\"fixed\\\" strategy\",\"server_max_conns\":60,\"time\":\"2026-07-31T18:00:11Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "8435c0a7-192a-4756-9c73-706b833a3b81",
+    "level": "info",
+    "msg": "applying connection limits to db using the \"fixed\" strategy",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"reloader\",\"grace_period_duration\":\"2s\",\"level\":\"info\",\"msg\":\"starting configuration reloader\",\"notify_enabled\":true,\"poller_enabled\":false,\"poller_interval\":\"10s\",\"signal_enabled\":false,\"signal_number\":10,\"time\":\"2026-07-31T18:00:11Z\"}",
+    "id": "1e018b7e-6c34-4282-bc02-53df50e4a6d0",
+    "level": "info",
+    "msg": "starting configuration reloader",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"count\":3,\"level\":\"info\",\"msg\":\"GoTrue migrations applied successfully\",\"time\":\"2026-07-31T18:00:11Z\"}",
+    "id": "e80600d4-a6fd-4d66-907d-4020a7a80147",
+    "level": "info",
+    "msg": "GoTrue migrations applied successfully",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: index worker started\",\"time\":\"2026-07-31T18:00:11Z\",\"worker_type\":\"apiworker_index_worker\"}",
+    "id": "ab5a150b-d1f7-4d7d-ac20-845bdecad50c",
+    "level": "info",
+    "msg": "apiworker: index worker started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: template cache worker started\",\"time\":\"2026-07-31T18:00:11Z\",\"worker_type\":\"apiworker_template_cache\"}",
+    "id": "431cba6a-d80a-4592-bd0f-98183d743353",
+    "level": "info",
+    "msg": "apiworker: template cache worker started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: config notifier started\",\"time\":\"2026-07-31T18:00:11Z\",\"worker_type\":\"apiworker_config_notifier\"}",
+    "id": "8f75e3ee-d03c-4c3b-8959-82592aa39ebc",
+    "level": "info",
+    "msg": "apiworker: config notifier started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T18:00:11Z\"}",
+    "id": "b5dea401-6a00-4f7f-807c-65d106a8c0f5",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: db worker started\",\"time\":\"2026-07-31T18:00:11Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "81bbba69-e0f6-427d-a055-bb6750c4e789",
+    "level": "info",
+    "msg": "apiworker: db worker started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520811000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"prometheus metric exporter shut down\",\"time\":\"2026-07-31T18:00:10Z\"}",
+    "id": "b4a2806d-60a9-4671-a5bb-3ee1ff6be9fb",
+    "level": "info",
+    "msg": "prometheus metric exporter shut down",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"received graceful shutdown signal\",\"time\":\"2026-07-31T18:00:10Z\"}",
+    "id": "6af76fdb-0e45-4c4f-9a3e-d348c6d1d74e",
+    "level": "info",
+    "msg": "received graceful shutdown signal",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: config notifier exited\",\"time\":\"2026-07-31T18:00:10Z\",\"worker_type\":\"apiworker_config_notifier\"}",
+    "id": "af395f1c-d933-45ec-af47-ae59d92a6311",
+    "level": "info",
+    "msg": "apiworker: config notifier exited",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: index worker exited\",\"time\":\"2026-07-31T18:00:10Z\",\"worker_type\":\"apiworker_index_worker\"}",
+    "id": "0d598166-7788-40ef-9971-3fac75ec8745",
+    "level": "info",
+    "msg": "apiworker: index worker exited",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: template cache worker exited\",\"time\":\"2026-07-31T18:00:10Z\",\"worker_type\":\"apiworker_template_cache\"}",
+    "id": "a9ed0dc8-ce93-4338-8f1e-c0ae53b1cff0",
+    "level": "info",
+    "msg": "apiworker: template cache worker exited",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"reloader\",\"grace_period_duration\":\"2s\",\"level\":\"info\",\"msg\":\"config reloader is exiting\",\"notify_enabled\":true,\"poller_enabled\":false,\"poller_interval\":\"10s\",\"signal_enabled\":false,\"signal_number\":10,\"time\":\"2026-07-31T18:00:10Z\"}",
+    "id": "cfe4ef9b-37b1-4f3b-9841-a336192806bc",
+    "level": "info",
+    "msg": "config reloader is exiting",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"info\",\"msg\":\"http server closed\",\"time\":\"2026-07-31T18:00:10Z\"}",
+    "id": "128b1aae-4ccb-4970-be93-14cf5b644dcd",
+    "level": "info",
+    "msg": "http server closed",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: db worker exited\",\"time\":\"2026-07-31T18:00:10Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "9c94b316-931a-43be-a20c-b0a38e5f8c2e",
+    "level": "info",
+    "msg": "apiworker: db worker exited",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"background apiworker is exiting\",\"time\":\"2026-07-31T18:00:10Z\"}",
+    "id": "18bfec7f-7b82-4080-9737-549782ad04a1",
+    "level": "info",
+    "msg": "background apiworker is exiting",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520810000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"reloader\",\"grace_period_duration\":\"2s\",\"level\":\"info\",\"msg\":\"starting configuration reloader\",\"notify_enabled\":true,\"poller_enabled\":false,\"poller_interval\":\"10s\",\"signal_enabled\":false,\"signal_number\":10,\"time\":\"2026-07-31T17:59:10Z\"}",
+    "id": "3805d5f8-f6d7-4317-9aeb-9de3563e8e4d",
+    "level": "info",
+    "msg": "starting configuration reloader",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: config notifier started\",\"time\":\"2026-07-31T17:59:10Z\",\"worker_type\":\"apiworker_config_notifier\"}",
+    "id": "ea9b641d-3a60-41e1-a68f-fff1886a2676",
+    "level": "info",
+    "msg": "apiworker: config notifier started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T17:59:10Z\"}",
+    "id": "8bcf79b4-1f77-4993-85a0-21ca0b45ac99",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_ADMIN_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"GoTrue API started on: localhost:9999\",\"time\":\"2026-07-31T17:59:10Z\",\"version\":\"v2.194.0\"}",
+    "id": "2baf02e1-524e-42ee-9bde-c2b1c1896530",
+    "level": "info",
+    "msg": "GoTrue API started on: localhost:9999",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"prometheus server listening on 0.0.0.0:9122\",\"time\":\"2026-07-31T17:59:10Z\"}",
+    "id": "9bd8887c-0ac0-4cf2-b16a-c6a00e4445ba",
+    "level": "info",
+    "msg": "prometheus server listening on 0.0.0.0:9122",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"count\":0,\"level\":\"info\",\"msg\":\"GoTrue migrations applied successfully\",\"time\":\"2026-07-31T17:59:10Z\"}",
+    "id": "66d860aa-cb15-47d0-adf9-e5e336a9605d",
+    "level": "info",
+    "msg": "GoTrue migrations applied successfully",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"api\",\"level\":\"warning\",\"msg\":\"DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon\",\"time\":\"2026-07-31T17:59:10Z\"}",
+    "id": "ffaca52e-a3a6-4be8-ab29-3e9d2d5f7fc9",
+    "level": "warning",
+    "msg": "DEPRECATION NOTICE: GOTRUE_JWT_DEFAULT_GROUP_NAME not supported by Supabase's GoTrue, will be removed soon",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: template cache worker started\",\"time\":\"2026-07-31T17:59:10Z\",\"worker_type\":\"apiworker_template_cache\"}",
+    "id": "becebf49-d340-4348-9a3d-dcf043503c60",
+    "level": "info",
+    "msg": "apiworker: template cache worker started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"config_conn_max_idle_time\":\"1m0s\",\"config_conn_max_lifetime\":\"0s\",\"config_conn_percentage\":0,\"config_max_idle_pool_size\":10,\"config_max_pool_size\":10,\"level\":\"info\",\"limit_conn_max_idle_time\":\"1m0s\",\"limit_conn_max_lifetime\":\"0s\",\"limit_max_idle_conns\":10,\"limit_max_open_conns\":10,\"limit_strategy\":\"fixed\",\"msg\":\"applying connection limits to db using the \\\"fixed\\\" strategy\",\"server_max_conns\":60,\"time\":\"2026-07-31T17:59:10Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "5efdb3e0-9468-4137-92c7-4a62fb9c7990",
+    "level": "info",
+    "msg": "applying connection limits to db using the \"fixed\" strategy",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: db worker started\",\"time\":\"2026-07-31T17:59:10Z\",\"worker_type\":\"apiworker_db_worker\"}",
+    "id": "79878a5e-def9-4ba8-b83e-687968b81bde",
+    "level": "info",
+    "msg": "apiworker: db worker started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"component\":\"apiworker\",\"level\":\"info\",\"msg\":\"apiworker: index worker started\",\"time\":\"2026-07-31T17:59:10Z\",\"worker_type\":\"apiworker_index_worker\"}",
+    "id": "12fb7bed-fd7b-4570-95ae-bc8170fdc533",
+    "level": "info",
+    "msg": "apiworker: index worker started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  },
+  {
+    "error": "",
+    "event_message": "{\"level\":\"info\",\"msg\":\"Go runtime metrics collection started\",\"time\":\"2026-07-31T17:59:10Z\"}",
+    "id": "05e0da31-655c-474b-b4aa-c6fff2ebb250",
+    "level": "info",
+    "msg": "Go runtime metrics collection started",
+    "path": "",
+    "status": "",
+    "timestamp": 1785520750000000
+  }
+]
