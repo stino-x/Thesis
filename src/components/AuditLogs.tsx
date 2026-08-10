@@ -13,6 +13,89 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Download, Filter, RefreshCw, FileText, Video, Webcam, Image, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
+/**
+ * Generate a human-readable explanation of the detection result
+ */
+const generateReadableExplanation = (log: AuditLog): string => {
+  const parts: string[] = [];
+  
+  // Main verdict
+  if (log.detection_result === 'deepfake') {
+    parts.push(`🚨 DEEPFAKE DETECTED: This ${log.detection_type} content appears to be AI-generated or digitally manipulated with ${(log.confidence_score * 100).toFixed(1)}% confidence.`);
+  } else if (log.detection_result === 'real') {
+    parts.push(`✅ AUTHENTIC: This ${log.detection_type} content appears to be genuine with ${(log.confidence_score * 100).toFixed(1)}% confidence.`);
+  } else {
+    parts.push(`⚠️ UNCERTAIN: The analysis was inconclusive. Confidence: ${(log.confidence_score * 100).toFixed(1)}%.`);
+  }
+
+  // File details
+  if (log.file_name) {
+    parts.push(`\nFile: "${log.file_name}" (${formatFileSize(log.file_size)})`);
+  }
+
+  // Analysis details
+  if (log.metadata) {
+    const meta = log.metadata;
+    
+    if (meta.resolution) {
+      parts.push(`Resolution: ${meta.resolution}`);
+    }
+
+    if (meta.duration_seconds) {
+      parts.push(`Duration: ${meta.duration_seconds.toFixed(1)} seconds`);
+    }
+
+    if (meta.frames_analyzed) {
+      parts.push(`Analyzed ${meta.frames_analyzed} frames`);
+      if (meta.deepfake_frames && meta.real_frames) {
+        parts.push(`(${meta.deepfake_frames} deepfake, ${meta.real_frames} real)`);
+      }
+    }
+
+    if (meta.features_analyzed && meta.features_analyzed.length > 0) {
+      const methods = meta.features_analyzed
+        .map((f: string) => f.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))
+        .join(', ');
+      parts.push(`\n\n🔍 Detection Methods Used: ${methods}`);
+    }
+
+    if (meta.scores && Object.keys(meta.scores).length > 0) {
+      parts.push('\n\n📊 Individual AI Model Verdicts:');
+      Object.entries(meta.scores).forEach(([model, score]) => {
+        const scoreValue = typeof score === 'number' ? score : 0;
+        const verdict = scoreValue > 0.5 ? 'Deepfake' : 'Real';
+        const modelName = model.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+        parts.push(`  • ${modelName}: ${verdict} (${(scoreValue * 100).toFixed(1)}%)`);
+      });
+    }
+
+    if (meta.anomalies_detected && meta.anomalies_detected.length > 0) {
+      parts.push('\n\n⚠️ Suspicious Indicators Found:');
+      meta.anomalies_detected.forEach((anomaly: string) => {
+        const readable = anomaly
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (c: string) => c.toUpperCase())
+          .replace('Ela', 'Image Manipulation Evidence')
+          .replace('High Temporal Variance', 'Inconsistent quality across frames')
+          .replace('Frequent Verdict Flips', 'Unstable predictions (sign of manipulation)');
+        parts.push(`  • ${readable}`);
+      });
+    }
+  }
+
+  parts.push(`\n\n⏱️ Analysis completed in ${log.processing_time_ms}ms`);
+  parts.push(`📅 Analyzed on: ${new Date(log.created_at).toLocaleString()}`);
+
+  return parts.join('\n');
+};
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return 'N/A';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
 const AuditLogs = () => {
   const { user } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -21,13 +104,7 @@ const AuditLogs = () => {
   const [filters, setFilters] = useState<AuditLogFilters>({});
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user, filters]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     
     setLoading(true);
@@ -45,7 +122,13 @@ const AuditLogs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, filters]);
+
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
 
   const handleExport = async (format: 'csv' | 'json') => {
     try {
@@ -99,11 +182,10 @@ const AuditLogs = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return 'N/A';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  const handleCopyExplanation = (log: AuditLog) => {
+    const explanation = generateReadableExplanation(log);
+    navigator.clipboard.writeText(explanation);
+    toast.success('Human-readable explanation copied to clipboard!');
   };
 
   if (!user) {
@@ -369,15 +451,50 @@ const AuditLogs = () => {
                                 {log.file_name || 'Unnamed file'}
                               </CardTitle>
                             </div>
-                            <Badge variant={
-                              log.detection_result === 'deepfake' ? 'destructive' :
-                              log.detection_result === 'real' ? 'default' : 'secondary'
-                            }>
-                              {log.detection_result}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={
+                                log.detection_result === 'deepfake' ? 'destructive' :
+                                log.detection_result === 'real' ? 'default' : 'secondary'
+                              }>
+                                {log.detection_result}
+                              </Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCopyExplanation(log)}
+                                title="Copy human-readable explanation"
+                              >
+                                Copy Report
+                              </Button>
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent>
+                          {/* Human-Readable Summary */}
+                          <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                            <p className="text-sm leading-relaxed">
+                              {log.detection_result === 'deepfake' ? (
+                                <>
+                                  <span className="font-semibold text-red-600">⚠ This content appears to be AI-generated or manipulated.</span>
+                                  {' '}Our AI detected it as a deepfake with {(log.confidence_score * 100).toFixed(0)}% confidence.
+                                  {log.metadata?.anomalies_detected?.length > 0 && (
+                                    <> We found {log.metadata.anomalies_detected.length} suspicious indicator(s).</>
+                                  )}
+                                </>
+                              ) : log.detection_result === 'real' ? (
+                                <>
+                                  <span className="font-semibold text-green-600">✓ This content appears to be authentic.</span>
+                                  {' '}Our AI analyzed it and found no signs of manipulation ({(log.confidence_score * 100).toFixed(0)}% confidence).
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-semibold text-yellow-600">? Unable to determine authenticity.</span>
+                                  {' '}The AI models gave mixed results. Manual verification may be needed.
+                                </>
+                              )}
+                            </p>
+                          </div>
+
                           <div className="grid gap-2 text-sm">
                             <div className="grid grid-cols-2 gap-2">
                               <div>
@@ -410,10 +527,151 @@ const AuditLogs = () => {
 
                             {log.metadata && (
                               <div className="mt-4 pt-4 border-t">
-                                <div className="text-muted-foreground mb-2">Metadata:</div>
-                                <pre className="text-xs bg-muted p-2 rounded overflow-auto">
-                                  {JSON.stringify(log.metadata, null, 2)}
-                                </pre>
+                                <div className="text-muted-foreground mb-2 font-semibold">Analysis Details:</div>
+                                <div className="space-y-3">
+                                  {/* Face Detection Status */}
+                                  {log.metadata.face_detected !== undefined && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Face Detected:</span>
+                                      <span className="font-medium">
+                                        {log.metadata.face_detected ? '✓ Yes' : '✗ No'}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Resolution */}
+                                  {log.metadata.resolution && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Image Resolution:</span>
+                                      <span className="font-medium">{log.metadata.resolution}</span>
+                                    </div>
+                                  )}
+
+                                  {/* Frame Count (Video) */}
+                                  {log.metadata.frame_count && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Total Frames:</span>
+                                      <span className="font-medium">{log.metadata.frame_count} frames</span>
+                                    </div>
+                                  )}
+
+                                  {/* Duration (Video) */}
+                                  {log.metadata.duration_seconds && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Video Duration:</span>
+                                      <span className="font-medium">{log.metadata.duration_seconds.toFixed(1)} seconds</span>
+                                    </div>
+                                  )}
+
+                                  {/* Frames Analyzed (Video) */}
+                                  {log.metadata.frames_analyzed && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Frames Analyzed:</span>
+                                      <span className="font-medium">{log.metadata.frames_analyzed} frames</span>
+                                    </div>
+                                  )}
+
+                                  {/* Real/Deepfake Frame Counts (Video) */}
+                                  {(log.metadata.real_frames !== undefined || log.metadata.deepfake_frames !== undefined) && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Frame Breakdown:</span>
+                                      <div className="flex flex-col gap-1">
+                                        {log.metadata.real_frames !== undefined && (
+                                          <span className="font-medium text-green-600">Real: {log.metadata.real_frames} frames</span>
+                                        )}
+                                        {log.metadata.deepfake_frames !== undefined && (
+                                          <span className="font-medium text-red-600">Deepfake: {log.metadata.deepfake_frames} frames</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Suspicious Segments (Video) */}
+                                  {log.metadata.suspicious_segments && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Suspicious Segments:</span>
+                                      <span className="font-medium text-orange-600">{log.metadata.suspicious_segments} segments found</span>
+                                    </div>
+                                  )}
+
+                                  {/* AI Models Used */}
+                                  {log.metadata.features_analyzed && log.metadata.features_analyzed.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Detection Methods:</span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {log.metadata.features_analyzed.map((feature: string, idx: number) => (
+                                          <Badge key={idx} variant="outline" className="text-xs">
+                                            {feature.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Individual Model Scores */}
+                                  {log.metadata.scores && Object.keys(log.metadata.scores).length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">AI Model Scores:</span>
+                                      <div className="flex flex-col gap-1 flex-1">
+                                        {Object.entries(log.metadata.scores).map(([model, score]) => {
+                                          const scoreValue = typeof score === 'number' ? score : 0;
+                                          const isDeepfake = scoreValue > 0.5;
+                                          return (
+                                            <div key={model} className="flex items-center justify-between text-sm">
+                                              <span className="font-medium">
+                                                {model.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                                                  <div 
+                                                    className={`h-full ${isDeepfake ? 'bg-red-500' : 'bg-green-500'}`}
+                                                    style={{ width: `${scoreValue * 100}%` }}
+                                                  />
+                                                </div>
+                                                <span className={`font-bold ${isDeepfake ? 'text-red-600' : 'text-green-600'}`}>
+                                                  {(scoreValue * 100).toFixed(1)}%
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Anomalies Detected */}
+                                  {log.metadata.anomalies_detected && log.metadata.anomalies_detected.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-muted-foreground min-w-[140px]">Warning Signs:</span>
+                                      <div className="flex flex-col gap-1 flex-1">
+                                        {log.metadata.anomalies_detected.map((anomaly: string, idx: number) => {
+                                          const humanReadable = anomaly
+                                            .replace(/_/g, ' ')
+                                            .replace(/\b\w/g, c => c.toUpperCase())
+                                            .replace('Ela', 'Image Manipulation')
+                                            .replace('High Temporal Variance', 'Inconsistent frame quality')
+                                            .replace('Frequent Verdict Flips', 'Unstable detection across frames')
+                                            .replace('No Face Detected', 'No human face found in image');
+                                          return (
+                                            <Badge key={idx} variant="destructive" className="text-xs w-fit">
+                                              ⚠ {humanReadable}
+                                            </Badge>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Raw JSON Toggle for Advanced Users */}
+                                  <details className="mt-4">
+                                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                                      View Raw Technical Data
+                                    </summary>
+                                    <pre className="text-xs bg-muted p-2 rounded overflow-auto mt-2">
+                                      {JSON.stringify(log.metadata, null, 2)}
+                                    </pre>
+                                  </details>
+                                </div>
                               </div>
                             )}
                           </div>
