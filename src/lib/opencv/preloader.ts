@@ -24,6 +24,7 @@ export const preloadOpenCV = (): Promise<void> => {
 
   opencvLoadPromise = new Promise((resolve, reject) => {
     console.log('🔄 Starting OpenCV.js preload...');
+    console.log('   Loading from: https://docs.opencv.org/4.x/opencv.js');
     
     if (typeof cv !== 'undefined' && cv.Mat) {
       console.log('✅ OpenCV.js already loaded');
@@ -33,19 +34,24 @@ export const preloadOpenCV = (): Promise<void> => {
     }
 
     const startTime = Date.now();
-    const timeout = 30000; // 30 seconds
+    const timeout = 60000; // 60 seconds (increased from 30s)
     
     const checkInterval = setInterval(() => {
       if (typeof cv !== 'undefined' && cv.Mat) {
         clearInterval(checkInterval);
         const loadTime = Date.now() - startTime;
         console.log(`✅ OpenCV.js preloaded successfully in ${loadTime}ms`);
+        console.log(`   OpenCV version: ${cv.getBuildInformation ? 'Available' : 'Unknown'}`);
         opencvLoaded = true;
         resolve();
       } else if (Date.now() - startTime > timeout) {
         clearInterval(checkInterval);
-        console.error('❌ OpenCV.js preload timeout');
-        reject(new Error('OpenCV.js failed to preload'));
+        const elapsed = Date.now() - startTime;
+        console.error(`❌ OpenCV.js preload timeout after ${elapsed}ms`);
+        console.error('   This may be due to slow network or CORS issues');
+        console.error('   Face alignment will use MediaPipe fallback');
+        // Don't reject - allow fallback
+        resolve(); // Resolve instead of reject to continue without OpenCV
       }
     }, 100);
   });

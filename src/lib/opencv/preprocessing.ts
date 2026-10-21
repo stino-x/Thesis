@@ -20,8 +20,9 @@ import { getOpenCVLoadPromise } from './preloader';
 /**
  * Wait for OpenCV to be ready (with timeout)
  * Uses the preloader promise if available
+ * Now with graceful fallback if OpenCV unavailable
  */
-export const waitForOpenCV = async (timeoutMs = 30000): Promise<void> => {
+export const waitForOpenCV = async (timeoutMs = 60000): Promise<void> => {
   try {
     // Try to use the preloader promise first
     await Promise.race([
@@ -30,8 +31,17 @@ export const waitForOpenCV = async (timeoutMs = 30000): Promise<void> => {
         setTimeout(() => reject(new Error('Timeout')), timeoutMs)
       )
     ]);
+    
+    // Verify OpenCV actually loaded
+    if (typeof cv === 'undefined' || !cv.Mat) {
+      console.warn('⚠️  OpenCV loaded but cv object not available');
+      console.warn('   Will use MediaPipe fallback for face alignment');
+      throw new Error('OpenCV object not available');
+    }
   } catch (error) {
-    throw new Error(`OpenCV.js failed to load within ${timeoutMs}ms. Please refresh the page and try again.`);
+    console.warn(`⚠️  OpenCV not available: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.warn('   Continuing with MediaPipe-only face detection');
+    // Don't throw - allow processing to continue with fallback
   }
 };
 
