@@ -69,10 +69,12 @@ UNIVFD_WEIGHTS_PATH = WEIGHTS_DIR / "fc_weights.pth"
 # Forensics Adapter weights (CVPR 2025)
 # GitHub: https://github.com/ouc-vas/forensicsadapter
 # Google Drive: (see repo README for link)
+# 
+# UPDATE THIS URL with the actual download link from the repo:
 FORENSICS_ADAPTER_URL = (
-    # TODO: Add direct download link once available
-    # For now, manual download required
-    None
+    # Example: "https://huggingface.co/username/forensics-adapter/resolve/main/adapter.pth"
+    # Or use Hugging Face, Google Drive direct link, etc.
+    None  # Set to direct download URL to enable auto-download
 )
 FORENSICS_ADAPTER_PATH = WEIGHTS_DIR / "forensics_adapter.pth"
 
@@ -91,13 +93,25 @@ def download_weights():
             print(f"  Manual download: {UNIVFD_WEIGHTS_URL}")
             print(f"  Save to: {UNIVFD_WEIGHTS_PATH}")
     
-    # Check for Forensics Adapter weights
+    # Download Forensics Adapter weights (if URL is set)
     if not FORENSICS_ADAPTER_PATH.exists():
-        print("  ⚠️  Forensics Adapter weights not found")
-        print("  To enable Forensics Adapter (recommended, state-of-the-art):")
-        print("  1. Visit: https://github.com/ouc-vas/forensicsadapter")
-        print("  2. Download pretrained weights from Google Drive link in README")
-        print(f"  3. Save to: {FORENSICS_ADAPTER_PATH}")
+        if FORENSICS_ADAPTER_URL:
+            print("  Downloading Forensics Adapter weights...")
+            try:
+                urllib.request.urlretrieve(FORENSICS_ADAPTER_URL, FORENSICS_ADAPTER_PATH)
+                print(f"  ✅ Forensics Adapter weights saved to {FORENSICS_ADAPTER_PATH}")
+            except Exception as e:
+                print(f"  ⚠️  Could not download Forensics Adapter weights: {e}")
+                print("  Forensics Adapter will be unavailable (falling back to UnivFD)")
+        else:
+            print("  ⚠️  Forensics Adapter weights not found")
+            print("  To enable Forensics Adapter (recommended, state-of-the-art):")
+            print("  Option 1 - Auto-download:")
+            print("    Set FORENSICS_ADAPTER_URL in main.py to a direct download link")
+            print("  Option 2 - Manual download:")
+            print("    1. Visit: https://github.com/ouc-vas/forensicsadapter")
+            print("    2. Download pretrained weights from Google Drive link in README")
+            print(f"    3. Save to: {FORENSICS_ADAPTER_PATH}")
         print("  Will use UnivFD as fallback.")
 
 
