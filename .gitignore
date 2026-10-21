@@ -34,6 +34,7 @@ dist-ssr
 # public/models/efficientnet/
 # public/models/cnndetector/
 public/models/onnx/
+public/models/audio/
 scripts/cache/
 backend/weights/
 

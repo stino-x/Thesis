@@ -33,6 +33,7 @@ Run:
 Weights are auto-downloaded on first startup from the official repos.
 """
 
+import os
 import io
 import base64
 import urllib.request
@@ -68,13 +69,11 @@ UNIVFD_WEIGHTS_PATH = WEIGHTS_DIR / "fc_weights.pth"
 
 # Forensics Adapter weights (CVPR 2025)
 # GitHub: https://github.com/ouc-vas/forensicsadapter
-# Google Drive: (see repo README for link)
 # 
-# UPDATE THIS URL with the actual download link from the repo:
-FORENSICS_ADAPTER_URL = (
-    # Example: "https://huggingface.co/username/forensics-adapter/resolve/main/adapter.pth"
-    # Or use Hugging Face, Google Drive direct link, etc.
-    None  # Set to direct download URL to enable auto-download
+# Set via environment variable or update here:
+FORENSICS_ADAPTER_URL = os.environ.get(
+    "FORENSICS_ADAPTER_URL",
+    "https://huggingface.co/stino214/forensics-adapter-weights/resolve/main/ckpt_best.pth"
 )
 FORENSICS_ADAPTER_PATH = WEIGHTS_DIR / "forensics_adapter.pth"
 
