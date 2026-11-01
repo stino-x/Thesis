@@ -98,17 +98,41 @@ const ImageAnalyzer = () => {
     const performanceMonitor = (await import('@/lib/performance/performanceMonitor')).default;
     performanceMonitor.startMark('image-analysis-total');
 
+    // Helper function with timeout for any async task
+    const runWithTimeout = async <T,>(
+      task: Promise<T>,
+      taskName: string,
+      timeoutMs: number = 30000
+    ): Promise<T> => {
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(`${taskName} timeout after ${timeoutMs}ms`)), timeoutMs);
+        });
+        return await Promise.race([task, timeoutPromise]);
+      } catch (error) {
+        console.error(`❌ ${taskName} failed:`, error);
+        throw error;
+      }
+    };
+
     try {
       const canvas = canvasRef.current;
 
-      // 1. Load image + wait for OpenCV in parallel
+      // 1. Load image + wait for OpenCV in parallel with better error handling
       performanceMonitor.startMark('image-loading');
-      const [img] = await Promise.all([
-        loadImage(selectedFile),
-        waitForOpenCV(30000), // Increase timeout to 30 seconds
-      ]);
-      drawImageScaled(canvas, img);
-      setImageDimensions({ width: img.width, height: img.height });
+      try {
+        const [img] = await Promise.all([
+          loadImage(selectedFile, 15000), // 15 second timeout for image loading
+          waitForOpenCV(30000), // 30 second timeout for OpenCV
+        ]);
+        drawImageScaled(canvas, img);
+        setImageDimensions({ width: img.width, height: img.height });
+      } catch (error) {
+        console.error('❌ Failed to load image or OpenCV:', error);
+        toast.error('Failed to load image. Please try a different file.');
+        setIsAnalyzing(false);
+        return;
+      }
       const loadingTime = performanceMonitor.endMark('image-loading');
 
       // 1.5. Apply defensive transforms if enabled
@@ -140,15 +164,32 @@ const ImageAnalyzer = () => {
       const mat = canvasToMat(canvas);
       const processed = preprocessForML(mat, 224);
 
-      // 3. Face Detection + UnivFD + ELA all in parallel (all independent)
+      // 3. Face Detection + UnivFD + ELA all in parallel (all independent) with timeout
       performanceMonitor.startMark('face-detection');
       const faceDetector = getFaceDetector();
       await faceDetector.waitForInitialization();
 
+      // Helper function with timeout for each detection task
+      const runWithTimeout = async <T,>(
+        task: Promise<T>,
+        taskName: string,
+        timeoutMs: number = 30000
+      ): Promise<T | null> => {
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`${taskName} timeout after ${timeoutMs}ms`)), timeoutMs);
+          });
+          return await Promise.race([task, timeoutPromise]);
+        } catch (error) {
+          console.warn(`⚠️ ${taskName} failed:`, error);
+          return null;
+        }
+      };
+
       const [faces, univfd, elaData] = await Promise.all([
-        faceDetector.detect(canvas),
-        detectFileWithUnivFD(selectedFile).catch(() => null),
-        performELA(canvas).catch(() => null),
+        runWithTimeout(faceDetector.detect(canvas), 'Face detection', 15000),
+        runWithTimeout(detectFileWithUnivFD(selectedFile), 'UnivFD detection', 20000),
+        runWithTimeout(performELA(canvas), 'ELA analysis', 10000),
       ]);
       const faceDetectionTime = performanceMonitor.endMark('face-detection');
 
@@ -171,10 +212,23 @@ const ImageAnalyzer = () => {
         return;
       }
 
-      // 4. Face Mesh (needs face detection result first)
+      // 4. Face Mesh (needs face detection result first) with timeout
       const faceMesh = getFaceMesh();
-      await faceMesh.waitForInitialization();
-      const meshResult = await faceMesh.detect(canvas);
+      try {
+        await runWithTimeout(faceMesh.waitForInitialization(), 'Face mesh initialization', 10000);
+      } catch (error) {
+        console.warn('⚠️ Face mesh initialization failed, proceeding without face mesh:', error);
+        // Continue without face mesh
+      }
+      
+      let meshResult = { detected: false, landmarks: undefined as any };
+      try {
+        meshResult = await runWithTimeout(faceMesh.detect(canvas), 'Face mesh detection', 10000) ?? 
+                     { detected: false, landmarks: undefined };
+      } catch (error) {
+        console.warn('⚠️ Face mesh detection failed, proceeding without face mesh:', error);
+        // Continue without face mesh
+      }
 
       // 5. Multi-Modal Detection
       performanceMonitor.startMark('model-inference');
@@ -819,7 +873,7 @@ const ImageAnalyzer = () => {
                             <p className="text-xs text-muted-foreground mt-1">
                               Detects: Stable Diffusion, DALL-E, Midjourney, SORA
                             </p>
-                            {univfdResult.anomalies.length > 0 && (
+                            {univfdResult.anomalies && univfdResult.anomalies.length > 0 && (
                               <ul className="space-y-1 mt-1">
                                 {univfdResult.anomalies.map((a, i) => (
                                   <li key={i} className="text-orange-500">⚠ {a.replace(/_/g, ' ')}</li>

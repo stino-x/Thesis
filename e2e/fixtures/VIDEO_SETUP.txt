@@ -1,0 +1,10 @@
+
+# To generate test-video.mp4, run one of these commands:
+
+# Option 1: Using ffmpeg (recommended)
+ffmpeg -f lavfi -i color=c=blue:s=320x240:d=1 -c:v libx264 -pix_fmt yuv420p e2e/fixtures/test-video.mp4
+
+# Option 2: Copy any short video file you have
+# Just copy any MP4 file to: e2e/fixtures/test-video.mp4
+
+# Note: The E2E tests will skip video tests if test-video.mp4 is not present

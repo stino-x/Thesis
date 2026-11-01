@@ -50,16 +50,24 @@ export const getVideoMetadata = (video: HTMLVideoElement): VideoMetadata => {
 };
 
 /**
- * Extract frame at specific time
+ * Extract frame at specific time with timeout
  */
 export const extractFrame = async (
   video: HTMLVideoElement,
-  time: number
+  time: number,
+  timeoutMs: number = 5000
 ): Promise<HTMLCanvasElement> => {
   return new Promise((resolve, reject) => {
-    video.currentTime = time;
+    let timeoutId: NodeJS.Timeout;
     
-    video.onseeked = () => {
+    const cleanup = () => {
+      video.onseeked = null;
+      video.onerror = null;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    
+    const onSuccess = () => {
+      cleanup();
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -74,14 +82,30 @@ export const extractFrame = async (
       resolve(canvas);
     };
     
-    video.onerror = () => {
+    const onError = () => {
+      cleanup();
       reject(new Error('Failed to seek video'));
     };
+    
+    const onTimeout = () => {
+      cleanup();
+      reject(new Error(`Frame extraction timeout after ${timeoutMs}ms at time ${time}s`));
+    };
+    
+    // Set timeout
+    timeoutId = setTimeout(onTimeout, timeoutMs);
+    
+    // Set up event handlers
+    video.onseeked = onSuccess;
+    video.onerror = onError;
+    
+    // Start seeking
+    video.currentTime = time;
   });
 };
 
 /**
- * Extract multiple frames from video
+ * Extract multiple frames from video with timeout and error handling
  */
 export const extractFrames = async (
   video: HTMLVideoElement,
@@ -92,8 +116,25 @@ export const extractFrames = async (
   const duration = video.duration;
   
   for (let time = 0; time < duration; time += intervalSeconds) {
-    const frameCanvas = await extractFrame(video, time);
-    frames.push({ imageData: frameCanvas, timestamp: time });
+    try {
+      const frameCanvas = await extractFrame(video, time, 5000);
+      frames.push({ imageData: frameCanvas, timestamp: time });
+    } catch (error) {
+      console.warn(`⚠️ Failed to extract frame at ${time}s:`, error);
+      // Continue with next frame instead of stopping entire extraction
+      // You could optionally push a placeholder or skip this frame
+    }
+  }
+  
+  // If no frames could be extracted at all, try one more time at 0 timestamp
+  if (frames.length === 0 && duration > 0) {
+    try {
+      const frameCanvas = await extractFrame(video, 0, 10000);
+      frames.push({ imageData: frameCanvas, timestamp: 0 });
+    } catch (error) {
+      console.error('❌ Could not extract any frames from video:', error);
+      throw new Error('No frames could be extracted from the video');
+    }
   }
   
   return frames;
@@ -150,6 +191,7 @@ export const validateImageFile = (file: File): boolean => {
  * Get file size in human-readable format
  */
 export const formatFileSize = (bytes: number): string => {
+  if (isNaN(bytes) || bytes < 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
@@ -185,20 +227,43 @@ export const createVideoThumbnail = async (
 /**
  * Load image from file
  */
-export const loadImage = (file: File): Promise<HTMLImageElement> => {
+export const loadImage = (file: File, timeoutMs: number = 10000): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    let timeoutId: NodeJS.Timeout;
     
-    img.onload = () => {
+    const cleanup = () => {
+      img.onload = null;
+      img.onerror = null;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    
+    const onSuccess = () => {
+      cleanup();
       URL.revokeObjectURL(img.src);
       resolve(img);
     };
     
-    img.onerror = () => {
+    const onError = () => {
+      cleanup();
       URL.revokeObjectURL(img.src);
       reject(new Error('Failed to load image'));
     };
     
+    const onTimeout = () => {
+      cleanup();
+      URL.revokeObjectURL(img.src);
+      reject(new Error(`Image loading timeout after ${timeoutMs}ms`));
+    };
+    
+    // Set timeout
+    timeoutId = setTimeout(onTimeout, timeoutMs);
+    
+    // Set up event handlers
+    img.onload = onSuccess;
+    img.onerror = onError;
+    
+    // Start loading
     img.src = URL.createObjectURL(file);
   });
 };
@@ -207,7 +272,7 @@ export const loadImage = (file: File): Promise<HTMLImageElement> => {
  * Format duration in seconds to readable format (MM:SS)
  */
 export const formatDuration = (seconds: number): string => {
-  if (isNaN(seconds) || seconds < 0) return '00:00';
+  if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '00:00';
   
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
