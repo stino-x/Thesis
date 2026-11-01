@@ -120,11 +120,13 @@ const ImageAnalyzer = () => {
 
       // 1. Load image + wait for OpenCV in parallel with better error handling
       performanceMonitor.startMark('image-loading');
+      let img: HTMLImageElement;
       try {
-        const [img] = await Promise.all([
+        const [loadedImg] = await Promise.all([
           loadImage(selectedFile, 15000), // 15 second timeout for image loading
           waitForOpenCV(30000), // 30 second timeout for OpenCV
         ]);
+        img = loadedImg;
         drawImageScaled(canvas, img);
         setImageDimensions({ width: img.width, height: img.height });
       } catch (error) {
@@ -221,13 +223,18 @@ const ImageAnalyzer = () => {
         // Continue without face mesh
       }
       
-      let meshResult = { detected: false, landmarks: undefined as any };
+      let meshResult: { detected: boolean; landmarks: any } = { detected: false, landmarks: undefined };
       try {
-        meshResult = await runWithTimeout(faceMesh.detect(canvas), 'Face mesh detection', 10000) ?? 
-                     { detected: false, landmarks: undefined };
+        const result = await runWithTimeout(faceMesh.detect(canvas), 'Face mesh detection', 10000);
+        if (result) {
+          meshResult = {
+            detected: result.detected,
+            landmarks: result.landmarks || undefined
+          };
+        }
       } catch (error) {
         console.warn('⚠️ Face mesh detection failed, proceeding without face mesh:', error);
-        // Continue without face mesh
+        // Continue with face mesh
       }
 
       // 5. Multi-Modal Detection
