@@ -238,7 +238,7 @@ const VideoAnalyzer = () => {
             batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
 
             // Apply defensive transforms if enabled
-            const processedCanvas = batchCanvas;
+            let processedCanvas = batchCanvas;
             if (settings.enableDefensiveTransforms) {
               try {
                 const { applyDefensiveTransforms } = await import('@/lib/defense/defensiveTransforms');
