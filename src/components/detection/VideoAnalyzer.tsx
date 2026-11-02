@@ -161,31 +161,28 @@ const VideoAnalyzer = () => {
       // Update progress to show frame extraction has started
       setAnalysisProgress(10);
       
-      const [frames, univfdResult] = await Promise.all([
-        extractFrames(video, canvas, frameInterval).then(frames => {
+      // SIMPLIFIED: Extract frames without waiting for UnivFD or face detection
+      const frames = await extractFrames(video, canvas, frameInterval)
+        .then(frames => {
           console.log(`✅ Extracted ${frames.length} frames from video`);
           setAnalysisProgress(20); // Update after extraction
           return frames;
-        }).catch(error => {
+        })
+        .catch(error => {
           console.error('❌ Frame extraction failed:', error);
           throw error;
-        }),
-        // UnivFD runs once on the whole file — no need to repeat per frame
-        detectWithUnivFD(canvas, selectedFile.name)
-          .then(result => {
-            if (result) {
-              console.log('✅ UnivFD detection successful');
-            } else {
-              console.warn('⚠️ UnivFD detection returned null (backend might be unavailable)');
-            }
-            return result;
-          })
-          .catch(error => {
-            console.warn('⚠️ UnivFD detection failed:', error);
-            return null;
-          }),
-      ]);
-      const univfd = univfdResult ?? undefined;
+        });
+
+      // Try UnivFD but don't block if it fails
+      let univfd: any = undefined;
+      try {
+        univfd = await detectWithUnivFD(canvas, selectedFile.name).catch(() => null);
+        if (univfd) {
+          console.log('✅ UnivFD detection successful');
+        }
+      } catch (univfdError) {
+        console.warn('⚠️ UnivFD detection failed, continuing without it:', univfdError);
+      }
 
       if (frames.length === 0) {
         toast.error('No frames could be extracted from video');
@@ -196,25 +193,11 @@ const VideoAnalyzer = () => {
       // Initialize detector with sensitivity from settings
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
-      detector.setThreshold(1 - settings.sensitivity); // Lower sensitivity = higher threshold
+      detector.setThreshold(1 - settings.sensitivity);
 
-      // Analyze frames with multi-modal detection — process in batches of 4
+      // Analyze frames - SKIP face mesh entirely for now
       const results: FrameResult[] = [];
-      
-      // Try to initialize face mesh, but continue even if it fails
-      let faceMesh: any = null;
-      try {
-        const { getFaceMesh } = await import('@/lib/mediapipe');
-        faceMesh = getFaceMesh();
-        await faceMesh.waitForInitialization();
-        console.log('✅ Face mesh initialized');
-      } catch (meshError) {
-        console.warn('⚠️ Face mesh failed to initialize, continuing without facial landmarks:', meshError);
-        toast.warning('Face mesh unavailable - analysis will continue with visual models only');
-      }
-
       const BATCH_SIZE = 4;
-      
       // Helper function with timeout for individual frame processing
       const processFrameWithTimeout = async (
         frame: { imageData: HTMLCanvasElement; timestamp: number },
@@ -223,63 +206,25 @@ const VideoAnalyzer = () => {
         const timeoutMs = 30000; // 30 second timeout per frame
         
         try {
-          // Create a promise that rejects after timeout
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Frame ${frameIndex} processing timeout after ${timeoutMs}ms`)), timeoutMs);
+            setTimeout(() => reject(new Error(`Frame ${frameIndex} timeout`)), timeoutMs);
           });
           
-          // Create processing promise
           const processPromise = (async () => {
-            // Each batch item needs its own canvas to avoid race conditions
             const batchCanvas = document.createElement('canvas');
             batchCanvas.width = canvas.width;
             batchCanvas.height = canvas.height;
             const batchCtx = batchCanvas.getContext('2d')!;
             batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
 
-            // Apply defensive transforms if enabled
-            let processedCanvas = batchCanvas;
-            if (settings.enableDefensiveTransforms) {
-              try {
-                const { applyDefensiveTransforms } = await import('@/lib/defense/defensiveTransforms');
-                const transformedCanvas = await applyDefensiveTransforms(batchCanvas, {
-                  jpegCompression: settings.jpegQuality,
-                  gaussianBlur: settings.gaussianBlur > 0 ? settings.gaussianBlur : undefined,
-                  randomCrop: settings.enableRandomCrop,
-                  resize: settings.enableResize,
-                });
-                processedCanvas = transformedCanvas;
-              } catch (transformError) {
-                console.warn('⚠️  Defensive transforms failed for frame, using original:', transformError);
-                // Fall back to original canvas
-              }
-            }
-
-            const imageData = processedCanvas.getContext('2d')!.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
-            
-            // Try to get mesh result, but don't fail if mesh is unavailable
-            let meshResult = { detected: false, landmarks: undefined };
-            if (faceMesh) {
-              try {
-                meshResult = await faceMesh.detect(processedCanvas);
-              } catch (meshError) {
-                console.warn('⚠️ Face mesh detection failed for frame, continuing without landmarks:', meshError);
-              }
-            }
+            // Skip defensive transforms and face mesh - just do basic detection
+            const imageData = batchCanvas.getContext('2d')!.getImageData(0, 0, batchCanvas.width, batchCanvas.height);
 
             const result = await detector.detectMultiModal({
               imageData,
-              faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
-              canvas: processedCanvas,
-              faceBbox: meshResult.detected && meshResult.landmarks
-                ? (() => {
-                    const xs = meshResult.landmarks.map(l => l.x);
-                    const ys = meshResult.landmarks.map(l => l.y);
-                    const xMin = Math.min(...xs), xMax = Math.max(...xs);
-                    const yMin = Math.min(...ys), yMax = Math.max(...ys);
-                    return { xMin, yMin, width: xMax - xMin, height: yMax - yMin };
-                  })()
-                : undefined,
+              faceMesh: undefined, // Skip face mesh
+              canvas: batchCanvas,
+              faceBbox: undefined,
               audioBuffer: audioBuffer ?? undefined,
               file: selectedFile,
               timestamp: frame.timestamp,
@@ -287,22 +232,16 @@ const VideoAnalyzer = () => {
               univfd: frameIndex === 0 ? univfd : undefined,
             });
 
-            // Clean up canvas to prevent memory leaks
+            // Clean up
             batchCanvas.width = 0;
             batchCanvas.height = 0;
-            if (processedCanvas !== batchCanvas) {
-              processedCanvas.width = 0;
-              processedCanvas.height = 0;
-            }
 
             return { frameIndex, timestamp: frame.timestamp, result };
           })();
           
-          // Race between processing and timeout
           return await Promise.race([processPromise, timeoutPromise]);
         } catch (error) {
-          console.error(`⚠️ Frame ${frameIndex} processing failed:`, error);
-          // Return null to indicate failure but continue with other frames
+          console.error(`⚠️ Frame ${frameIndex} failed:`, error);
           return null;
         }
       };
