@@ -12,8 +12,12 @@ export default defineConfig({
   },
   server: {
     headers: {
+      // Relax COEP to allow cross-origin resources (MediaPipe, ONNX models)
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Embedder-Policy': 'credentialless', // Changed from 'require-corp'
     },
+  },
+  optimizeDeps: {
+    exclude: ['@mediapipe/face_detection', '@mediapipe/face_mesh'],
   },
 })

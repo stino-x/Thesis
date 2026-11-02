@@ -141,37 +141,6 @@ export const extractFrames = async (
 };
 
 /**
- * Get webcam stream
- */
-export const getWebcamStream = async (
-  constraints?: MediaStreamConstraints
-): Promise<MediaStream> => {
-  const defaultConstraints: MediaStreamConstraints = {
-    video: {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: { ideal: 30 },
-    },
-    audio: false,
-  };
-  
-  try {
-    return await navigator.mediaDevices.getUserMedia(
-      constraints || defaultConstraints
-    );
-  } catch (error) {
-    throw new Error(`Failed to access webcam: ${error}`);
-  }
-};
-
-/**
- * Stop media stream
- */
-export const stopMediaStream = (stream: MediaStream): void => {
-  stream.getTracks().forEach(track => track.stop());
-};
-
-/**
  * Validate video file
  */
 export const validateVideoFile = (file: File): boolean => {

@@ -157,9 +157,14 @@ const VideoAnalyzer = () => {
       const frameInterval = intervalMap[settings.processingSpeed] || 0.5;
 
       console.log('⏳ Starting frame extraction and UnivFD detection...');
+      
+      // Update progress to show frame extraction has started
+      setAnalysisProgress(10);
+      
       const [frames, univfdResult] = await Promise.all([
         extractFrames(video, canvas, frameInterval).then(frames => {
           console.log(`✅ Extracted ${frames.length} frames from video`);
+          setAnalysisProgress(20); // Update after extraction
           return frames;
         }).catch(error => {
           console.error('❌ Frame extraction failed:', error);
@@ -195,9 +200,18 @@ const VideoAnalyzer = () => {
 
       // Analyze frames with multi-modal detection — process in batches of 4
       const results: FrameResult[] = [];
-      const { getFaceMesh } = await import('@/lib/mediapipe');
-      const faceMesh = getFaceMesh();
-      await faceMesh.waitForInitialization();
+      
+      // Try to initialize face mesh, but continue even if it fails
+      let faceMesh: any = null;
+      try {
+        const { getFaceMesh } = await import('@/lib/mediapipe');
+        faceMesh = getFaceMesh();
+        await faceMesh.waitForInitialization();
+        console.log('✅ Face mesh initialized');
+      } catch (meshError) {
+        console.warn('⚠️ Face mesh failed to initialize, continuing without facial landmarks:', meshError);
+        toast.warning('Face mesh unavailable - analysis will continue with visual models only');
+      }
 
       const BATCH_SIZE = 4;
       
@@ -224,7 +238,7 @@ const VideoAnalyzer = () => {
             batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
 
             // Apply defensive transforms if enabled
-            let processedCanvas = batchCanvas;
+            const processedCanvas = batchCanvas;
             if (settings.enableDefensiveTransforms) {
               try {
                 const { applyDefensiveTransforms } = await import('@/lib/defense/defensiveTransforms');
@@ -242,7 +256,16 @@ const VideoAnalyzer = () => {
             }
 
             const imageData = processedCanvas.getContext('2d')!.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
-            const meshResult = await faceMesh.detect(processedCanvas);
+            
+            // Try to get mesh result, but don't fail if mesh is unavailable
+            let meshResult = { detected: false, landmarks: undefined };
+            if (faceMesh) {
+              try {
+                meshResult = await faceMesh.detect(processedCanvas);
+              } catch (meshError) {
+                console.warn('⚠️ Face mesh detection failed for frame, continuing without landmarks:', meshError);
+              }
+            }
 
             const result = await detector.detectMultiModal({
               imageData,

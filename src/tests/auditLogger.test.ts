@@ -350,12 +350,6 @@ describe('AuditLoggerService', () => {
           confidence_score: 0.5,
           processing_time_ms: 1500,
         },
-        {
-          detection_type: 'webcam',
-          detection_result: 'real',
-          confidence_score: 0.8,
-          processing_time_ms: 500,
-        },
       ];
 
       supabase.from.mockReturnValueOnce({
@@ -374,16 +368,15 @@ describe('AuditLoggerService', () => {
       const stats = await logger.getStats('user-123', '2024-01-01', '2024-01-31');
 
       expect(stats).toEqual({
-        total_detections: 4,
+        total_detections: 3,
         deepfake_count: 1,
-        real_count: 2,
+        real_count: 1,
         uncertain_count: 1,
-        avg_confidence: (0.9 + 0.7 + 0.5 + 0.8) / 4,
-        avg_processing_time: (1000 + 2000 + 1500 + 500) / 4,
+        avg_confidence: (0.9 + 0.7 + 0.5) / 3,
+        avg_processing_time: (1000 + 2000 + 1500) / 3,
         detection_by_type: {
           image: 2,
           video: 1,
-          webcam: 1,
         },
       });
     });
@@ -408,7 +401,6 @@ describe('AuditLoggerService', () => {
         detection_by_type: {
           image: 0,
           video: 0,
-          webcam: 0,
         },
       });
     });

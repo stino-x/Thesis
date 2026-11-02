@@ -497,10 +497,10 @@ export class DeepfakeDetector {
     }
     if (faceMesh && canvas && timestamp !== undefined) {
       // PPG requires temporal data — only run when we have a frame sequence
-      // (webcam/video). For single images the analyzer will return
+      // (video). For single images the analyzer will return
       // insufficient_data anyway, but we skip the call to avoid noise.
-      const isVideoOrWebcam = options.isVideoFrame === true;
-      if (isVideoOrWebcam) {
+      const isVideo = options.isVideoFrame === true;
+      if (isVideo) {
         results.ppg = await getPPGAnalyzer().analyzePPG(faceMesh, canvas, timestamp);
       }
     }
@@ -514,7 +514,7 @@ export class DeepfakeDetector {
       results.univfd = univfd;
     }
 
-    // Feed visual result into temporal sliding window (video/webcam only)
+    // Feed visual result into temporal sliding window (video only)
     let temporalResult: TemporalAnalysisResult | undefined;
     if (results.visual && options.isVideoFrame) {
       const visualScore = results.visual.confidence * (results.visual.isDeepfake ? 1 : 0);
