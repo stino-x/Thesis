@@ -187,7 +187,6 @@ class AuditLoggerService {
         detection_by_type: {
           image: logs.filter(l => l.detection_type === 'image').length,
           video: logs.filter(l => l.detection_type === 'video').length,
-          webcam: logs.filter(l => l.detection_type === 'webcam').length,
         },
       };
 

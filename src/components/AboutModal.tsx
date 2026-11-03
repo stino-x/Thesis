@@ -35,7 +35,7 @@ export const AboutModal = ({ open, onOpenChange }: AboutModalProps) => {
           <div className="space-y-2">
             <h3 className="text-lg font-semibold">How it works</h3>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-              <li>Upload a video or use your webcam</li>
+              <li>Upload an image or video file</li>
               <li>AI analyzes facial features frame-by-frame</li>
               <li>Results show authenticity confidence score</li>
               <li>Heatmaps explain suspicious regions</li>

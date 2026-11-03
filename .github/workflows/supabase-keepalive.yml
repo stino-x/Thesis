@@ -9,8 +9,28 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase
+      - name: Health Check Supabase
         run: |
-          curl -X GET "https://oubmtrcorbixtmimvjdx.supabase.co/rest/v1/audit_logs?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          echo "Pinging Supabase to keep instance active..."
+          
+          # Use the REST API root endpoint which doesn't require authentication
+          # and doesn't hit any tables with RLS
+          response=$(curl -s -w "\n%{http_code}" -X GET \
+            "https://nwnxgogcesnzrxvuwrmq.supabase.co/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response body: $body"
+          
+          # Accept 200-299 status codes as success
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Supabase is alive and responding"
+            exit 0
+          else
+            echo "❌ Supabase health check failed with status $http_code"
+            echo "This may indicate the instance is paused or there's a configuration issue"
+            exit 1
+          fi

@@ -7,7 +7,7 @@ import { AboutModal } from "@/components/AboutModal";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, ImageIcon, Video, Shield, History, ArrowRight } from "lucide-react";
+import { ImageIcon, Video, Shield, History, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 const Index = () => {
@@ -16,13 +16,6 @@ const Index = () => {
   const navigate = useNavigate();
 
   const detectionModes = [
-    {
-      icon: Camera,
-      title: "Webcam Detection",
-      description: "Real-time deepfake analysis using your webcam with live face tracking and continuous monitoring.",
-      tab: "webcam",
-      features: ["Live overlay", "FPS tracking", "Snapshot capture"],
-    },
     {
       icon: ImageIcon,
       title: "Image Analysis",
@@ -51,12 +44,11 @@ const Index = () => {
       <main className="flex-1 container mx-auto px-4 py-4 sm:py-8 relative z-10">
         <Hero
           onUploadClick={() => navigate("/detect?tab=video")}
-          onWebcamClick={() => navigate("/detect?tab=webcam")}
           onSamplesClick={() => navigate("/detect?tab=image")}
         />
 
         {/* Detection Mode Cards */}
-        <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
+        <div className="mt-12 grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
           {detectionModes.map((mode, index) => (
             <motion.div
               key={mode.tab}

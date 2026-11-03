@@ -2,14 +2,14 @@
  * Detection Page
  * 
  * Main page for deepfake detection with tabbed interface
- * Integrates webcam, image, and video analyzers
+ * Integrates image and video analyzers
  */
 
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Image, Video, Shield, Info, CheckCircle, Download, Clock, XCircle } from 'lucide-react';
+import { Image, Video, Shield, Info, CheckCircle, Download, Clock, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 import { Header } from '@/components/Header';
@@ -23,7 +23,6 @@ import { DetectionErrorBoundary } from '@/components/DetectionErrorBoundary';
 
 // Lazy-load heavy detection components — TF.js + ONNX Runtime only load
 // when the user actually navigates to /detection, not on the home page.
-const WebcamDetector = lazy(() => import('@/components/detection/WebcamDetector'));
 const ImageAnalyzer  = lazy(() => import('@/components/detection/ImageAnalyzer'));
 const VideoAnalyzer  = lazy(() => import('@/components/detection/VideoAnalyzer'));
 
@@ -74,7 +73,7 @@ const LiveModelStatus = () => {
 
 const Detection = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'webcam';
+  const initialTab = searchParams.get('tab') || 'image';
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -124,11 +123,7 @@ const Detection = () => {
 
       {/* Detection Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid h-12 p-1 bg-muted/50 backdrop-blur-sm">
-          <TabsTrigger value="webcam" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
-            <Camera className="h-4 w-4" />
-            <span className="hidden sm:inline">Webcam</span>
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid h-12 p-1 bg-muted/50 backdrop-blur-sm">
           <TabsTrigger value="image" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Image className="h-4 w-4" />
             <span className="hidden sm:inline">Image</span>
@@ -138,30 +133,6 @@ const Detection = () => {
             <span className="hidden sm:inline">Video</span>
           </TabsTrigger>
         </TabsList>
-
-        {/* Webcam Detection */}
-        <TabsContent value="webcam" className="space-y-6 animate-slide-up">
-          <ModelLoadingStatus />
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
-              <div className="flex items-center gap-2">
-                <Camera className="h-5 w-5 text-primary" />
-                <CardTitle>Real-time Webcam Detection</CardTitle>
-              </div>
-              <CardDescription>
-                Analyze live video feed from your webcam for deepfake manipulation
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <DetectionErrorBoundary label="Webcam detection">
-                <Suspense fallback={<DetectorFallback />}>
-                  <WebcamDetector />
-                </Suspense>
-              </DetectionErrorBoundary>
-            </CardContent>
-          </Card>
-          <DiagnosticPanel />
-        </TabsContent>
 
         {/* Image Analysis */}
         <TabsContent value="image" className="space-y-6 animate-slide-up">
@@ -196,38 +167,7 @@ const Detection = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 hover:shadow-lg transition-all">
-              <h3 className="font-semibold flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Camera className="h-5 w-5 text-primary" />
-                </div>
-                Webcam Analysis
-              </h3>
-              <ul className="text-sm text-muted-foreground space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>ViT-Deepfake-Exp (98.8% accuracy) via ONNX</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>SwinV2 AI-generation detector (98.1%)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>PPG blood-flow physiological signal</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>468-point MediaPipe face mesh</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>Continuous monitoring with FPS tracking</span>
-                </li>
-              </ul>
-            </div>
-
+          <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-accent/5 to-accent/10 border border-accent/20 hover:shadow-lg transition-all">
               <h3 className="font-semibold flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-accent/10">
@@ -347,7 +287,7 @@ const Detection = () => {
                 </div>
                 <div>
                   <span className="font-medium text-foreground">PPG Blood-Flow:</span> Detects absence of
-                  heartbeat signal in facial skin pixels (Intel FakeCatcher approach). Video and webcam only.
+                  heartbeat signal in facial skin pixels (Intel FakeCatcher approach). Video only.
                 </div>
                 <div>
                   <span className="font-medium text-foreground">Lip-Sync (Phoneme):</span> Correlates lip

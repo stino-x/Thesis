@@ -130,6 +130,9 @@ const VideoAnalyzer = () => {
     setAnalysisProgress(0);
     const timer = getTimingHelper();
 
+    // Update progress immediately to show something is happening
+    setAnalysisProgress(5);
+
     // Reset temporal analyzer so a new video starts with a clean window
     const { getTemporalAnalyzer } = await import('@/lib/temporal/temporalConsistency');
     getTemporalAnalyzer().reset();
@@ -153,12 +156,33 @@ const VideoAnalyzer = () => {
       const intervalMap: Record<string, number> = { fast: 1.0, balanced: 0.5, accurate: 0.25 };
       const frameInterval = intervalMap[settings.processingSpeed] || 0.5;
 
-      const [frames, univfdResult] = await Promise.all([
-        extractFrames(video, canvas, frameInterval),
-        // UnivFD runs once on the whole file — no need to repeat per frame
-        detectWithUnivFD(canvas, selectedFile.name).catch(() => null),
-      ]);
-      const univfd = univfdResult ?? undefined;
+      console.log('⏳ Starting frame extraction and UnivFD detection...');
+      
+      // Update progress to show frame extraction has started
+      setAnalysisProgress(10);
+      
+      // SIMPLIFIED: Extract frames without waiting for UnivFD or face detection
+      const frames = await extractFrames(video, canvas, frameInterval)
+        .then(frames => {
+          console.log(`✅ Extracted ${frames.length} frames from video`);
+          setAnalysisProgress(20); // Update after extraction
+          return frames;
+        })
+        .catch(error => {
+          console.error('❌ Frame extraction failed:', error);
+          throw error;
+        });
+
+      // Try UnivFD but don't block if it fails
+      let univfd: any = undefined;
+      try {
+        univfd = await detectWithUnivFD(canvas, selectedFile.name).catch(() => null);
+        if (univfd) {
+          console.log('✅ UnivFD detection successful');
+        }
+      } catch (univfdError) {
+        console.warn('⚠️ UnivFD detection failed, continuing without it:', univfdError);
+      }
 
       if (frames.length === 0) {
         toast.error('No frames could be extracted from video');
@@ -169,76 +193,98 @@ const VideoAnalyzer = () => {
       // Initialize detector with sensitivity from settings
       const detector = getDeepfakeDetector();
       await detector.waitForInitialization();
-      detector.setThreshold(1 - settings.sensitivity); // Lower sensitivity = higher threshold
+      detector.setThreshold(1 - settings.sensitivity);
 
-      // Analyze frames with multi-modal detection — process in batches of 4
+      // Analyze frames - SKIP face mesh entirely for now
       const results: FrameResult[] = [];
-      const { getFaceMesh } = await import('@/lib/mediapipe');
-      const faceMesh = getFaceMesh();
-      await faceMesh.waitForInitialization();
-
       const BATCH_SIZE = 4;
+      // Helper function with timeout for individual frame processing
+      const processFrameWithTimeout = async (
+        frame: { imageData: HTMLCanvasElement; timestamp: number },
+        frameIndex: number
+      ): Promise<FrameResult | null> => {
+        const timeoutMs = 30000; // 30 second timeout per frame
+        
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Frame ${frameIndex} timeout`)), timeoutMs);
+          });
+          
+          const processPromise = (async () => {
+            const batchCanvas = document.createElement('canvas');
+            batchCanvas.width = canvas.width;
+            batchCanvas.height = canvas.height;
+            const batchCtx = batchCanvas.getContext('2d')!;
+            batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
+
+            // Skip defensive transforms and face mesh - just do basic detection
+            const imageData = batchCanvas.getContext('2d')!.getImageData(0, 0, batchCanvas.width, batchCanvas.height);
+
+            const result = await detector.detectMultiModal({
+              imageData,
+              faceMesh: undefined, // Skip face mesh
+              canvas: batchCanvas,
+              faceBbox: undefined,
+              audioBuffer: audioBuffer ?? undefined,
+              file: selectedFile,
+              timestamp: frame.timestamp,
+              isVideoFrame: true,
+              univfd: frameIndex === 0 ? univfd : undefined,
+            });
+
+            // Clean up
+            batchCanvas.width = 0;
+            batchCanvas.height = 0;
+
+            return { frameIndex, timestamp: frame.timestamp, result };
+          })();
+          
+          return await Promise.race([processPromise, timeoutPromise]);
+        } catch (error) {
+          console.error(`⚠️ Frame ${frameIndex} failed:`, error);
+          return null;
+        }
+      };
+
       for (let batchStart = 0; batchStart < frames.length; batchStart += BATCH_SIZE) {
         const batch = frames.slice(batchStart, batchStart + BATCH_SIZE);
-
-        const batchResults = await Promise.all(batch.map(async (frame, batchIdx) => {
-          const i = batchStart + batchIdx;
-          // Each batch item needs its own canvas to avoid race conditions
-          const batchCanvas = document.createElement('canvas');
-          batchCanvas.width = canvas.width;
-          batchCanvas.height = canvas.height;
-          const batchCtx = batchCanvas.getContext('2d')!;
-          batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
-
-          // Apply defensive transforms if enabled
-          let processedCanvas = batchCanvas;
-          if (settings.enableDefensiveTransforms) {
-            try {
-              const { applyDefensiveTransforms } = await import('@/lib/defense/defensiveTransforms');
-              const transformedCanvas = await applyDefensiveTransforms(batchCanvas, {
-                jpegCompression: settings.jpegQuality,
-                gaussianBlur: settings.gaussianBlur > 0 ? settings.gaussianBlur : undefined,
-                randomCrop: settings.enableRandomCrop,
-                resize: settings.enableResize,
-              });
-              processedCanvas = transformedCanvas;
-            } catch (transformError) {
-              console.warn('⚠️  Defensive transforms failed for frame, using original:', transformError);
-              // Fall back to original canvas
-            }
+        
+        // Process batch with individual timeouts
+        const batchPromises = batch.map((frame, batchIdx) => 
+          processFrameWithTimeout(frame, batchStart + batchIdx)
+        );
+        
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        // Extract successful results
+        const successfulResults: FrameResult[] = [];
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled' && result.value !== null) {
+            successfulResults.push(result.value);
           }
-
-          const imageData = processedCanvas.getContext('2d')!.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
-          const meshResult = await faceMesh.detect(processedCanvas);
-
-          const result = await detector.detectMultiModal({
-            imageData,
-            faceMesh: meshResult.detected ? meshResult.landmarks : undefined,
-            canvas: processedCanvas,
-            faceBbox: meshResult.detected && meshResult.landmarks
-              ? (() => {
-                  const xs = meshResult.landmarks.map(l => l.x);
-                  const ys = meshResult.landmarks.map(l => l.y);
-                  const xMin = Math.min(...xs), xMax = Math.max(...xs);
-                  const yMin = Math.min(...ys), yMax = Math.max(...ys);
-                  return { xMin, yMin, width: xMax - xMin, height: yMax - yMin };
-                })()
-              : undefined,
-            audioBuffer: audioBuffer ?? undefined,
-            file: selectedFile,
-            timestamp: frame.timestamp,
-            isVideoFrame: true,
-            univfd: i === 0 ? univfd : undefined,
-          });
-
-          return { frameIndex: i, timestamp: frame.timestamp, result };
-        }));
-
-        results.push(...batchResults);
+        }
+        
+        results.push(...successfulResults);
         setAnalysisProgress(((batchStart + batch.length) / frames.length) * 100);
+        
+        // If we failed to process any frames in this batch, show a warning but continue
+        if (successfulResults.length < batch.length) {
+          console.warn(`⚠️  Failed to process ${batch.length - successfulResults.length} frames in batch starting at ${batchStart}`);
+        }
+        
+        console.log(`✅ Processed batch ${batchStart / BATCH_SIZE + 1}/${Math.ceil(frames.length / BATCH_SIZE)}: ${successfulResults.length}/${batch.length} frames successful`);
       }
+      
+      console.log(`✅ Completed all batch processing: ${results.length}/${frames.length} total frames analyzed`);
 
       setFrameResults(results);
+
+      // Handle case where no frames could be analyzed
+      if (results.length === 0) {
+        toast.error('Could not analyze any frames from the video. Please try a different video file.');
+        setIsAnalyzing(false);
+        return;
+      }
 
       // Calculate overall result
       const avgConfidence =
@@ -249,6 +295,11 @@ const VideoAnalyzer = () => {
       const allAnomalies = Array.from(
         new Set(results.flatMap((r) => r.result.anomalies))
       );
+
+      // Add warning anomaly if we failed to analyze some frames
+      if (results.length < frames.length) {
+        allAnomalies.push(`partial_analysis_only_${results.length}_of_${frames.length}_frames_analyzed`);
+      }
 
       // Aggregate per-frame modality scores
       const scoreKeys = ['faceMesh', 'texture', 'lighting', 'features', 'metadata', 'physiological', 'lipSync', 'voice'] as const;
@@ -568,13 +619,18 @@ const VideoAnalyzer = () => {
                   <div className="flex justify-between text-sm font-medium">
                     <span className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      Analyzing video frames...
+                      {analysisProgress === 0 ? 'Starting video analysis...' : 
+                       analysisProgress < 100 ? 'Analyzing video frames...' : 'Finalizing analysis...'}
                     </span>
                     <span className="text-muted-foreground">{Math.round(analysisProgress)}%</span>
                   </div>
                   <Progress value={analysisProgress} className="h-2" />
                   <p className="text-xs text-muted-foreground text-center">
-                    Processing with temporal consistency and multi-modal analysis
+                    {analysisProgress === 0 ? 'Loading models and extracting frames...' :
+                     analysisProgress < 30 ? 'Processing initial frames...' :
+                     analysisProgress < 70 ? 'Analyzing with multi-modal detection...' :
+                     analysisProgress < 100 ? 'Applying temporal consistency analysis...' :
+                     'Generating final report...'}
                   </p>
                 </div>
               )}

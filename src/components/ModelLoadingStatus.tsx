@@ -16,13 +16,20 @@ export interface ModelStatus {
   sizeMb: number;
 }
 
-// Singleton event bus — onnxDetector.ts fires events into this
+// Singleton event bus — onnxDetector.ts and detector.ts fire events into this
 const listeners = new Set<(statuses: ModelStatus[]) => void>();
 let currentStatuses: ModelStatus[] = [
+  // TensorFlow.js models
+  { key: 'mesonet',          label: 'MesoNet4',           state: 'pending', sizeMb: 2   },
+  // ONNX models (primary)
   { key: 'vitDeepfakeExp',   label: 'ViT-Deepfake-Exp',   state: 'pending', sizeMb: 343 },
   { key: 'vitDeepfakeV2',    label: 'ViT-Deepfake-v2',    state: 'pending', sizeMb: 343 },
   { key: 'deepfakeDetector', label: 'DeepfakeDetector',   state: 'pending', sizeMb: 95  },
   { key: 'aiDetector',       label: 'SwinV2-AI-Detector', state: 'pending', sizeMb: 307 },
+  // ONNX models (additional)
+  { key: 'xceptionNet',      label: 'Xception',           state: 'pending', sizeMb: 4   },
+  { key: 'efficientnetB4',   label: 'EfficientNet-B4',    state: 'pending', sizeMb: 69  },
+  { key: 'resnet50',         label: 'ResNet50',           state: 'pending', sizeMb: 90  },
 ];
 
 export function updateModelStatus(key: string, state: ModelStatus['state']) {

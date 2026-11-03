@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  detection_type TEXT NOT NULL CHECK (detection_type IN ('image', 'video', 'webcam')),
+  detection_type TEXT NOT NULL CHECK (detection_type IN ('image', 'video')),
   media_type TEXT,
   file_name TEXT,
   file_size BIGINT,

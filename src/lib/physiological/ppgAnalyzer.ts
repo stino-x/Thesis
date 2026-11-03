@@ -20,9 +20,13 @@ export interface PPGAnalysisResult {
   anomalies: string[];
   details: {
     pulseDetected: boolean;
+    heartRate: number; // BPM
+    heartRateVariability: number; // HRV in ms (SDNN)
     signalQuality: number; // 0-1
     signalConsistency: number; // 0-1
     skinRegionQuality: number; // 0-1
+    spatialConsistency: number; // Consistency across face regions (0-1)
+    frequencyHarmonics: boolean; // Presence of harmonics (2×, 3× base frequency)
   };
 }
 
@@ -55,6 +59,11 @@ export class PPGAnalyzer {
    * Analyze PPG signal from face mesh and canvas.
    * Requires at least minSamples frames — returns low-confidence result
    * for single images (PPG is meaningless without temporal data).
+   * 
+   * Enhanced with:
+   * - Heart Rate Variability (HRV/SDNN)
+   * - Spatial consistency across face regions
+   * - Frequency harmonics detection
    */
   async analyzePPG(
     faceMesh: NormalizedLandmarkList,
@@ -99,20 +108,31 @@ export class PPGAnalyzer {
         anomalies: ['insufficient_data'],
         details: {
           pulseDetected: false,
+          heartRate: 0,
+          heartRateVariability: 0,
           signalQuality: 0,
           signalConsistency: 0,
           skinRegionQuality: 0,
+          spatialConsistency: 0,
+          frequencyHarmonics: false,
         },
       };
     }
 
     // Analyze each region for pulse signal
-    const regionResults: { quality: number; consistency: number; pulseDetected: boolean }[] = [];
+    const regionResults: {
+      quality: number;
+      consistency: number;
+      pulseDetected: boolean;
+      heartRate: number;
+      hrv: number;
+      hasHarmonics: boolean;
+    }[] = [];
 
     for (const [regionName, samples] of this.rgbHistory.entries()) {
       if (samples.length < this.minSamples) continue;
 
-      const analysis = this.analyzePulseSignal(samples);
+      const analysis = this.analyzePulseSignalEnhanced(samples);
       regionResults.push(analysis);
 
       // Low signal quality indicates potential deepfake
@@ -132,6 +152,30 @@ export class PPGAnalyzer {
         anomalies.push(`inconsistent_signal_${regionName}`);
         deepfakeScore += 0.15;
       }
+
+      // NEW: Check HRV (Heart Rate Variability)
+      // Real humans: HRV typically 3-8 BPM (SDNN)
+      // Deepfakes: HRV often < 2 BPM (too stable) or 0 (no signal)
+      if (analysis.hrv < 2.0 && analysis.pulseDetected) {
+        anomalies.push(`abnormal_hrv_${regionName}`);
+        deepfakeScore += 0.25;
+      }
+
+      // NEW: Check for frequency harmonics
+      // Real pulse has harmonics (2×, 3× base frequency due to blood flow physics)
+      // Synthetic signals often lack these
+      if (!analysis.hasHarmonics && analysis.pulseDetected) {
+        anomalies.push(`missing_harmonics_${regionName}`);
+        deepfakeScore += 0.2;
+      }
+    }
+
+    // NEW: Check spatial consistency across regions
+    // Forehead PPG should correlate with cheek PPG
+    const spatialConsistency = this.calculateSpatialConsistency(regionResults);
+    if (spatialConsistency < 0.5 && regionResults.length >= 2) {
+      anomalies.push('poor_spatial_consistency');
+      deepfakeScore += 0.25;
     }
 
     // Check consistency across regions
@@ -150,7 +194,10 @@ export class PPGAnalyzer {
     // Calculate overall metrics
     const avgSignalQuality = regionResults.reduce((sum, r) => sum + r.quality, 0) / Math.max(regionResults.length, 1);
     const avgConsistency = regionResults.reduce((sum, r) => sum + r.consistency, 0) / Math.max(regionResults.length, 1);
+    const avgHeartRate = regionResults.reduce((sum, r) => sum + r.heartRate, 0) / Math.max(regionResults.length, 1);
+    const avgHRV = regionResults.reduce((sum, r) => sum + r.hrv, 0) / Math.max(regionResults.length, 1);
     const pulseDetected = regionResults.some(r => r.pulseDetected);
+    const hasHarmonics = regionResults.some(r => r.hasHarmonics);
 
     return {
       score: deepfakeScore,
@@ -158,9 +205,13 @@ export class PPGAnalyzer {
       anomalies,
       details: {
         pulseDetected,
+        heartRate: avgHeartRate,
+        heartRateVariability: avgHRV,
         signalQuality: avgSignalQuality,
         signalConsistency: avgConsistency,
         skinRegionQuality: regionResults.length / this.skinRegions.length,
+        spatialConsistency,
+        frequencyHarmonics: hasHarmonics,
       },
     };
   }
@@ -219,16 +270,25 @@ export class PPGAnalyzer {
   }
 
   /**
-   * Analyze RGB time series for pulse signal
-   * Real faces show periodic variations due to blood flow
+   * Enhanced pulse signal analysis with HRV and harmonics detection
    */
-  private analyzePulseSignal(samples: RGBSample[]): {
+  private analyzePulseSignalEnhanced(samples: RGBSample[]): {
     quality: number;
     consistency: number;
     pulseDetected: boolean;
+    heartRate: number;
+    hrv: number;
+    hasHarmonics: boolean;
   } {
     if (samples.length < this.minSamples) {
-      return { quality: 0, consistency: 0, pulseDetected: false };
+      return {
+        quality: 0,
+        consistency: 0,
+        pulseDetected: false,
+        heartRate: 0,
+        hrv: 0,
+        hasHarmonics: false,
+      };
     }
 
     // Extract green channel (most sensitive to blood volume changes)
@@ -256,7 +316,7 @@ export class PPGAnalyzer {
     let maxPower = 0;
     let dominantFreqIndex = 0;
     
-    // Only check physiological range (0.8-2 Hz)
+    // Only check physiological range (0.8-2 Hz = 48-120 BPM)
     const minIndex = Math.floor(0.8 / freqResolution);
     const maxIndex = Math.floor(2.0 / freqResolution);
 
@@ -268,16 +328,151 @@ export class PPGAnalyzer {
     }
 
     const dominantFreq = dominantFreqIndex * freqResolution;
+    const heartRate = dominantFreq * 60; // Convert Hz to BPM
     const pulseDetected = dominantFreq >= 0.8 && dominantFreq <= 2.0 && maxPower > 0.1;
 
     // Calculate consistency (ratio of dominant peak to total power)
     const totalPower = powerSpectrum.reduce((sum, p) => sum + p, 0);
     const consistency = totalPower > 0 ? maxPower / totalPower : 0;
 
+    // NEW: Calculate Heart Rate Variability (HRV)
+    // Find peaks in time domain to get inter-beat intervals (IBIs)
+    const hrv = this.calculateHRV(detrended, dominantFreq, fs);
+
+    // NEW: Check for frequency harmonics (2×, 3× base frequency)
+    const hasHarmonics = this.detectHarmonics(powerSpectrum, dominantFreqIndex, maxPower);
+
     return {
       quality,
       consistency: Math.min(consistency * 5, 1.0), // Normalize
       pulseDetected,
+      heartRate,
+      hrv,
+      hasHarmonics,
+    };
+  }
+
+  /**
+   * Calculate Heart Rate Variability (HRV) using SDNN method
+   * SDNN = Standard Deviation of NN (Normal-to-Normal) intervals
+   * Real humans: 30-100ms typical, 3-8 BPM equivalent
+   * Deepfakes: Often < 10ms (too stable) or 0 (no variation)
+   */
+  private calculateHRV(signal: number[], dominantFreq: number, samplingRate: number): number {
+    if (dominantFreq === 0) return 0;
+
+    // Find peaks in the signal (local maxima)
+    const peaks: number[] = [];
+    for (let i = 1; i < signal.length - 1; i++) {
+      if (signal[i] > signal[i - 1] && signal[i] > signal[i + 1] && signal[i] > 0) {
+        peaks.push(i);
+      }
+    }
+
+    if (peaks.length < 3) return 0; // Need at least 3 peaks for 2 intervals
+
+    // Calculate inter-beat intervals (IBIs) in milliseconds
+    const ibis: number[] = [];
+    for (let i = 1; i < peaks.length; i++) {
+      const ibi = ((peaks[i] - peaks[i - 1]) / samplingRate) * 1000; // Convert to ms
+      // Filter out unrealistic IBIs (outside 300-2000ms = 30-200 BPM)
+      if (ibi >= 300 && ibi <= 2000) {
+        ibis.push(ibi);
+      }
+    }
+
+    if (ibis.length < 2) return 0;
+
+    // Calculate SDNN (standard deviation of IBIs)
+    const meanIBI = ibis.reduce((sum, v) => sum + v, 0) / ibis.length;
+    const variance = ibis.reduce((sum, v) => sum + (v - meanIBI) ** 2, 0) / ibis.length;
+    const sdnn = Math.sqrt(variance);
+
+    // Convert SDNN to equivalent BPM variation
+    // Approximate conversion: BPM_variation ≈ (SDNN / mean_IBI) * mean_HR
+    const meanHR = 60000 / meanIBI; // Convert mean IBI (ms) to BPM
+    const hrvBPM = (sdnn / meanIBI) * meanHR;
+
+    return hrvBPM;
+  }
+
+  /**
+   * Detect frequency harmonics (integer multiples of base frequency)
+   * Real physiological signals have harmonics due to blood flow physics
+   * Synthetic signals often lack these
+   */
+  private detectHarmonics(
+    powerSpectrum: number[],
+    baseFreqIndex: number,
+    basePower: number
+  ): boolean {
+    if (baseFreqIndex === 0 || basePower === 0) return false;
+
+    // Check for 2× harmonic (first harmonic)
+    const harmonic2Index = baseFreqIndex * 2;
+    if (harmonic2Index < powerSpectrum.length) {
+      const harmonic2Power = powerSpectrum[harmonic2Index];
+      // Harmonic should be at least 10% of base power
+      if (harmonic2Power > basePower * 0.1) {
+        return true;
+      }
+    }
+
+    // Check for 3× harmonic (second harmonic)
+    const harmonic3Index = baseFreqIndex * 3;
+    if (harmonic3Index < powerSpectrum.length) {
+      const harmonic3Power = powerSpectrum[harmonic3Index];
+      if (harmonic3Power > basePower * 0.05) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Calculate spatial consistency across face regions
+   * Real faces: Different regions should have correlated PPG signals
+   * Deepfakes: Often uncorrelated or missing signals in some regions
+   */
+  private calculateSpatialConsistency(
+    regionResults: Array<{ heartRate: number; hrv: number }>
+  ): number {
+    if (regionResults.length < 2) return 1.0; // Can't measure with < 2 regions
+
+    // Calculate coefficient of variation for heart rate across regions
+    // Lower CV = more consistent
+    const heartRates = regionResults.map(r => r.heartRate).filter(hr => hr > 0);
+    if (heartRates.length < 2) return 0;
+
+    const meanHR = heartRates.reduce((sum, hr) => sum + hr, 0) / heartRates.length;
+    const stdHR = Math.sqrt(
+      heartRates.reduce((sum, hr) => sum + (hr - meanHR) ** 2, 0) / heartRates.length
+    );
+    const cvHR = meanHR > 0 ? stdHR / meanHR : 1.0;
+
+    // Spatial consistency score (inverse of CV, normalized)
+    // CV < 0.1 (10%) = good consistency
+    // CV > 0.3 (30%) = poor consistency
+    const consistency = Math.max(0, 1 - (cvHR / 0.3));
+
+    return consistency;
+  }
+
+  /**
+   * Legacy method for backward compatibility - calls enhanced version
+   * @deprecated Use analyzePulseSignalEnhanced instead
+   */
+  private analyzePulseSignal(samples: RGBSample[]): {
+    quality: number;
+    consistency: number;
+    pulseDetected: boolean;
+  } {
+    const enhanced = this.analyzePulseSignalEnhanced(samples);
+    return {
+      quality: enhanced.quality,
+      consistency: enhanced.consistency,
+      pulseDetected: enhanced.pulseDetected,
     };
   }
 
@@ -350,9 +545,13 @@ export class PPGAnalyzer {
       anomalies: ['analysis_failed'],
       details: {
         pulseDetected: false,
+        heartRate: 0,
+        heartRateVariability: 0,
         signalQuality: 0,
         signalConsistency: 0,
         skinRegionQuality: 0,
+        spatialConsistency: 0,
+        frequencyHarmonics: false,
       },
     };
   }

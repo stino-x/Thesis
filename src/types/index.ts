@@ -19,9 +19,8 @@ export interface FaceDetectionResult {
 }
 
 export interface VideoSource {
-  type: 'upload' | 'webcam';
-  stream?: MediaStream;
-  file?: File;
+  type: 'upload';
+  file: File;
 }
 
 export interface ModelConfig {
@@ -34,7 +33,7 @@ export interface ModelConfig {
 export interface AuditLog {
   id: string;
   user_id: string;
-  detection_type: 'image' | 'video' | 'webcam';
+  detection_type: 'image' | 'video';
   media_type: string; // mime type
   file_name?: string;
   file_size?: number; // in bytes
@@ -52,9 +51,6 @@ export interface AuditLog {
     model_version?: string;
     features_analyzed?: string[];
     anomalies_detected?: string[];
-    // Additional fields for webcam detection
-    blink_rate?: number;
-    landmark_jitter?: number;
     snapshot?: boolean;
     // Additional fields for video detection
     frames_analyzed?: number;
@@ -69,7 +65,7 @@ export interface AuditLog {
 
 export interface AuditLogCreate {
   user_id: string;
-  detection_type: 'image' | 'video' | 'webcam';
+  detection_type: 'image' | 'video';
   media_type: string;
   file_name?: string;
   file_size?: number;
@@ -84,7 +80,7 @@ export interface AuditLogCreate {
 
 export interface AuditLogFilters {
   user_id?: string;
-  detection_type?: 'image' | 'video' | 'webcam';
+  detection_type?: 'image' | 'video';
   detection_result?: 'deepfake' | 'real' | 'uncertain';
   start_date?: string;
   end_date?: string;
@@ -102,6 +98,5 @@ export interface AuditLogStats {
   detection_by_type: {
     image: number;
     video: number;
-    webcam: number;
   };
 }

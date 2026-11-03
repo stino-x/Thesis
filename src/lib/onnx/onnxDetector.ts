@@ -1,7 +1,10 @@
 /**
  * ONNX Model Detector
- * Loads and runs ONNX models hosted on Hugging Face CDN.
- * Models: https://huggingface.co/stino214/deepfake-onnx-models
+ * 
+ * Models are loaded from local files in /public/models/onnx/
+ * Stored in Git LFS to handle large file sizes.
+ * 
+ * Reference (not used): https://huggingface.co/stino214/deepfake-onnx-models
  *
  * Caching strategy: models are stored in IndexedDB after first download
  * so subsequent page loads skip the ~1.1 GB network fetch entirely.
@@ -11,16 +14,15 @@ import * as ort from 'onnxruntime-web';
 import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
 import { updateModelStatus } from '@/components/ModelLoadingStatus';
 
-const HF_BASE = 'https://huggingface.co/stino214/deepfake-onnx-models/resolve/main';
-
+// Load models from local files (deployed via Git LFS)
 const MODEL_URLS = {
-  vitDeepfakeExp:   `${HF_BASE}/vit_deepfake_exp.onnx`,
-  vitDeepfakeV2:    `${HF_BASE}/vit_deepfake_v2.onnx`,
-  deepfakeDetector: `${HF_BASE}/deepfake_detector.onnx`,
-  aiDetector:       `${HF_BASE}/ai_detector_int8.onnx`,
-  efficientnetB4:   `${HF_BASE}/efficientnet_b4.onnx`,    // Powerful model (95-97% accuracy)
-  xceptionNet:      `${HF_BASE}/xception_net.onnx`,       // FaceForensics++ champion (97-99%)
-  resnet50:         `${HF_BASE}/resnet50.onnx`,           // Balanced model (94-96%)
+  vitDeepfakeExp:   '/models/onnx/vit_deepfake_exp.onnx',
+  vitDeepfakeV2:    '/models/onnx/vit_deepfake_v2.onnx',
+  deepfakeDetector: '/models/onnx/deepfake_detector.onnx',
+  aiDetector:       '/models/onnx/ai_detector_int8.onnx',
+  efficientnetB4:   '/models/onnx/efficientnet_b4.onnx',    // Powerful model (95-97% accuracy)
+  xceptionNet:      '/models/onnx/xception_net.onnx',       // FaceForensics++ champion (97-99%)
+  resnet50:         '/models/onnx/resnet50.onnx',           // Balanced model (94-96%)
 } as const;
 
 // Required for ONNX Runtime multi-threaded WASM

@@ -45,7 +45,6 @@ export const DEFAULT_TIMEOUTS = {
   IMAGE_DETECTION: 30000,      // 30 seconds
   VIDEO_FRAME: 10000,          // 10 seconds per frame
   VIDEO_TOTAL: 300000,         // 5 minutes total
-  WEBCAM_FRAME: 5000,          // 5 seconds
   MODEL_LOADING: 60000,        // 1 minute
   UNIVFD_API: 15000,           // 15 seconds
 } as const;

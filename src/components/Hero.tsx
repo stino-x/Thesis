@@ -1,15 +1,14 @@
-import { Upload, Video, Film, Sparkles } from "lucide-react";
+import { Upload, Film, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
 
 interface HeroProps {
   onUploadClick: () => void;
-  onWebcamClick: () => void;
   onSamplesClick: () => void;
 }
 
-export const Hero = ({ onUploadClick, onWebcamClick, onSamplesClick }: HeroProps) => {
+export const Hero = ({ onUploadClick, onSamplesClick }: HeroProps) => {
   return (
     <section className="relative overflow-hidden rounded-2xl">
       <div
@@ -64,17 +63,6 @@ export const Hero = ({ onUploadClick, onWebcamClick, onSamplesClick }: HeroProps
               <Upload className="h-5 w-5 transition-transform group-hover:scale-110" />
               Upload Video
               <Sparkles className="h-4 w-4 opacity-70" />
-            </Button>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              size="lg"
-              variant="outline"
-              className="gap-2 glass hover-glow w-full sm:w-auto"
-              onClick={onWebcamClick}
-            >
-              <Video className="h-5 w-5" />
-              Use Webcam
             </Button>
           </motion.div>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

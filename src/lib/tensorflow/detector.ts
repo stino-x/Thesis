@@ -109,31 +109,83 @@ export class DeepfakeDetector {
   private async initialize(): Promise<void> {
     try {
       await tf.ready();
-      console.log('TensorFlow.js ready — loading models...');
+      console.log('🔧 TensorFlow.js ready — loading models...');
+      console.log(`   Backend: ${tf.getBackend()}`);
+      console.log(`   TF.js version: ${tf.version.tfjs}`);
 
-      await Promise.allSettled([
+      const results = await Promise.allSettled([
         this.loadMesoNet(),
         this.loadMobileNet(),
       ]);
+
+      // Log results
+      results.forEach((result, idx) => {
+        const modelName = idx === 0 ? 'MesoNet' : 'MobileNet';
+        if (result.status === 'rejected') {
+          console.error(`❌ ${modelName} failed:`, result.reason);
+        }
+      });
 
       const loaded = Object.values(this.availability).filter(Boolean).length;
       console.log(`✅ Detector ready — ${loaded}/2 TF.js models loaded (ONNX models load separately)`, this.availability);
       this.isInitialized = true;
     } catch (error) {
-      console.error('Detector initialization error:', error);
+      console.error('❌ Detector initialization error:', error);
       this.isInitialized = true; // still mark ready so callers don't hang
     }
   }
 
   private async loadMesoNet(): Promise<void> {
     try {
-      this.mesonet = await tf.loadLayersModel('/models/mesonet/model.json');
+      console.log('📥 Loading MesoNet4...');
+      console.log('   Path: /models/mesonet/model.json');
+      
+      // Update status to downloading
+      const { updateModelStatus } = await import('@/components/ModelLoadingStatus');
+      updateModelStatus('mesonet', 'downloading');
+      
+      // Try to load the model
+      const modelPath = window.location.origin + '/models/mesonet/model.json';
+      console.log('   Full URL:', modelPath);
+      
+      this.mesonet = await tf.loadLayersModel(modelPath);
       this.availability.mesonet = true;
-      console.log('✅ MesoNet4 loaded (256×256, classic face-swaps)');
+      console.log('✅ MesoNet4 loaded successfully (256×256, classic face-swaps)');
+      console.log('   Layers:', this.mesonet.layers.length);
+      console.log('   Input shape:', this.mesonet.inputs[0].shape);
+      
+      // Update status to ready
+      updateModelStatus('mesonet', 'ready');
     } catch (error) {
-      console.warn('⚠️  MesoNet failed to load:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('❌ MesoNet failed to load:', error);
+      
+      if (error instanceof Error) {
+        console.error('   Error message:', error.message);
+        console.error('   Error stack:', error.stack);
+      }
+      
+      // Try to fetch model.json directly to diagnose
+      try {
+        const response = await fetch('/models/mesonet/model.json');
+        console.error('   model.json fetch status:', response.status, response.statusText);
+        if (response.ok) {
+          const text = await response.text();
+          console.error('   model.json size:', text.length, 'bytes');
+          console.error('   First 200 chars:', text.substring(0, 200));
+        }
+      } catch (fetchError) {
+        console.error('   Could not fetch model.json:', fetchError);
+      }
+      
       console.warn('⚠️  MesoNet is optional - detection will continue with other models');
       this.availability.mesonet = false;
+      
+      // Update status to error
+      const { updateModelStatus } = await import('@/components/ModelLoadingStatus');
+      updateModelStatus('mesonet', 'error');
+      
+      // Re-throw to signal failure
+      throw error;
     }
   }
 
@@ -445,10 +497,10 @@ export class DeepfakeDetector {
     }
     if (faceMesh && canvas && timestamp !== undefined) {
       // PPG requires temporal data — only run when we have a frame sequence
-      // (webcam/video). For single images the analyzer will return
+      // (video). For single images the analyzer will return
       // insufficient_data anyway, but we skip the call to avoid noise.
-      const isVideoOrWebcam = options.isVideoFrame === true;
-      if (isVideoOrWebcam) {
+      const isVideo = options.isVideoFrame === true;
+      if (isVideo) {
         results.ppg = await getPPGAnalyzer().analyzePPG(faceMesh, canvas, timestamp);
       }
     }
@@ -462,7 +514,7 @@ export class DeepfakeDetector {
       results.univfd = univfd;
     }
 
-    // Feed visual result into temporal sliding window (video/webcam only)
+    // Feed visual result into temporal sliding window (video only)
     let temporalResult: TemporalAnalysisResult | undefined;
     if (results.visual && options.isVideoFrame) {
       const visualScore = results.visual.confidence * (results.visual.isDeepfake ? 1 : 0);

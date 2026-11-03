@@ -62,7 +62,6 @@ const DiagnosticPanel = () => {
     { name: 'TensorFlow.js', status: 'loading' },
     { name: 'Face Detection', status: 'loading' },
     { name: 'MesoNet Model', status: 'loading' },
-    { name: 'Webcam Access', status: 'loading' },
   ]);
   const [onnxCache, setOnnxCache] = useState<OnnxCacheEntry[]>([]);
 
@@ -119,25 +118,6 @@ const DiagnosticPanel = () => {
         name: 'MesoNet Model',
         status: 'error',
         error: error instanceof Error ? error.message : 'Model loading failed (optional - other models will be used)',
-      });
-    }
-
-    // 4. Check Webcam Access
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480 } 
-      });
-      stream.getTracks().forEach(track => track.stop());
-      newStatuses.push({
-        name: 'Webcam Access',
-        status: 'ready',
-        details: 'Camera permissions granted',
-      });
-    } catch (error) {
-      newStatuses.push({
-        name: 'Webcam Access',
-        status: 'error',
-        error: error.message,
       });
     }
 

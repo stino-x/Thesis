@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, Filter, RefreshCw, FileText, Video, Webcam, Image, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
+import { Download, Filter, RefreshCw, FileText, Video, Image, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -171,8 +171,6 @@ const AuditLogs = () => {
         return <Image className="h-4 w-4" />;
       case 'video':
         return <Video className="h-4 w-4" />;
-      case 'webcam':
-        return <Webcam className="h-4 w-4" />;
       default:
         return <FileText className="h-4 w-4" />;
     }
@@ -317,7 +315,7 @@ const AuditLogs = () => {
                   <Select
                     value={filters.detection_type || 'all'}
                     onValueChange={(value) => 
-                      setFilters({ ...filters, detection_type: value === 'all' ? undefined : value as 'image' | 'video' | 'webcam' })
+                      setFilters({ ...filters, detection_type: value === 'all' ? undefined : value as 'image' | 'video' })
                     }
                   >
                     <SelectTrigger id="detection-type">
@@ -327,7 +325,6 @@ const AuditLogs = () => {
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="image">Image</SelectItem>
                       <SelectItem value="video">Video</SelectItem>
-                      <SelectItem value="webcam">Webcam</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
