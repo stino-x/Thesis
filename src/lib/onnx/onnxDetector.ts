@@ -1,12 +1,10 @@
 /**
  * ONNX Model Detector
  * 
- * Model Loading Strategy (in priority order):
- * 1. Vercel Blob Storage (production): Set VITE_BLOB_BASE_URL env var
- * 2. Local files (development): Uses /models/onnx/ automatically in dev mode
- * 3. HuggingFace CDN (fallback): If neither above is available
+ * Models are loaded from local files in /public/models/onnx/
+ * Stored in Git LFS to handle large file sizes.
  * 
- * Models: https://huggingface.co/stino214/deepfake-onnx-models
+ * Reference (not used): https://huggingface.co/stino214/deepfake-onnx-models
  *
  * Caching strategy: models are stored in IndexedDB after first download
  * so subsequent page loads skip the ~1.1 GB network fetch entirely.
@@ -16,21 +14,15 @@ import * as ort from 'onnxruntime-web';
 import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
 import { updateModelStatus } from '@/components/ModelLoadingStatus';
 
-// Use environment variable for blob storage, fallback to local files
-const BLOB_BASE = import.meta.env.VITE_BLOB_BASE_URL;
-const LOCAL_BASE = '/models/onnx';
-
-// Priority: Vercel Blob > Local files (no external CDN needed)
-const BASE_URL = BLOB_BASE || LOCAL_BASE;
-
+// Load models from local files (deployed via Git LFS)
 const MODEL_URLS = {
-  vitDeepfakeExp:   `${BASE_URL}/vit_deepfake_exp.onnx`,
-  vitDeepfakeV2:    `${BASE_URL}/vit_deepfake_v2.onnx`,
-  deepfakeDetector: `${BASE_URL}/deepfake_detector.onnx`,
-  aiDetector:       `${BASE_URL}/ai_detector_int8.onnx`,
-  efficientnetB4:   `${BASE_URL}/efficientnet_b4.onnx`,    // Powerful model (95-97% accuracy)
-  xceptionNet:      `${BASE_URL}/xception_net.onnx`,       // FaceForensics++ champion (97-99%)
-  resnet50:         `${BASE_URL}/resnet50.onnx`,           // Balanced model (94-96%)
+  vitDeepfakeExp:   '/models/onnx/vit_deepfake_exp.onnx',
+  vitDeepfakeV2:    '/models/onnx/vit_deepfake_v2.onnx',
+  deepfakeDetector: '/models/onnx/deepfake_detector.onnx',
+  aiDetector:       '/models/onnx/ai_detector_int8.onnx',
+  efficientnetB4:   '/models/onnx/efficientnet_b4.onnx',    // Powerful model (95-97% accuracy)
+  xceptionNet:      '/models/onnx/xception_net.onnx',       // FaceForensics++ champion (97-99%)
+  resnet50:         '/models/onnx/resnet50.onnx',           // Balanced model (94-96%)
 } as const;
 
 // Required for ONNX Runtime multi-threaded WASM

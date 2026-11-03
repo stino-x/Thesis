@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Download AASIST model from Hugging Face during build
- * This runs automatically during npm install / Vercel build
+ * Download AASIST model from Hugging Face during build (OPTIONAL)
+ * Model is already included in repo via Git LFS.
+ * This script skips download if model already exists locally.
+ * 
+ * Reference: https://huggingface.co/stino214/forensics-adapter-weights/resolve/main/aasist.onnx
  */
 
 import https from 'https';
@@ -16,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ============================================================================
-// 🔗 CONFIGURATION - Update with your Hugging Face URL
+// 🔗 CONFIGURATION
 // ============================================================================
 
 const AASIST_URL = process.env.AASIST_MODEL_URL || 
@@ -25,6 +28,14 @@ const AASIST_URL = process.env.AASIST_MODEL_URL ||
 const OUTPUT_PATH = path.join(__dirname, '..', 'public', 'models', 'audio', 'aasist.onnx');
 
 // ============================================================================
+
+// Check if model already exists (from Git LFS)
+if (fs.existsSync(OUTPUT_PATH)) {
+  const stats = fs.statSync(OUTPUT_PATH);
+  const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+  console.log(`✅ AASIST model already exists (${sizeMB} MB) - skipping download`);
+  process.exit(0);
+}
 
 console.log('📥 Downloading AASIST model from Hugging Face...');
 console.log(`   Source: ${AASIST_URL}`);
