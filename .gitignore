@@ -28,15 +28,12 @@ dist-ssr
 *.sln
 *.sw?
 
-# Model weights (large binary files — hosted on Hugging Face)
-# public/models/xception/
-# public/models/xception-onnx/
-# public/models/efficientnet/
-# public/models/cnndetector/
-public/models/onnx/
-public/models/audio/
-scripts/cache/
+# Model weights - KEPT IN REPO for deployment (required for detection)
+# Backend weights are large and optional, so excluded
+# public/models/onnx/ - INCLUDED (needed for ONNX detection)
+# public/models/audio/ - INCLUDED (needed for audio detection)
 backend/weights/
+scripts/cache/
 
 # Python virtualenvs (any name/location)
 __pycache__/
