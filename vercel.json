@@ -8,7 +8,7 @@
     }
   },
   "buildCommand": "npm run build",
-  "installCommand": "git lfs install && git lfs pull && npm install",
+  "installCommand": "npm install",
   "headers": [
     {
       "source": "/(.*)",
