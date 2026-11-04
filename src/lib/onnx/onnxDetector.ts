@@ -1,10 +1,10 @@
 /**
  * ONNX Model Detector
  * 
- * Models are loaded from local files in /public/models/onnx/
- * Stored in Git LFS to handle large file sizes.
+ * Models are loaded from Hugging Face to avoid Git LFS deployment issues.
+ * Cached in IndexedDB after first download for fast subsequent loads.
  * 
- * Reference (not used): https://huggingface.co/stino214/deepfake-onnx-models
+ * Hugging Face Repository: https://huggingface.co/stino214/deepfake-onnx-models
  *
  * Caching strategy: models are stored in IndexedDB after first download
  * so subsequent page loads skip the ~1.1 GB network fetch entirely.
@@ -14,16 +14,21 @@ import * as ort from 'onnxruntime-web';
 import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
 import { updateModelStatus } from '@/components/ModelLoadingStatus';
 
-// Load models from local files (deployed via Git LFS)
+// Load models from Hugging Face (deployed via Git LFS on HF)
+const HF_BASE = 'https://huggingface.co/stino214/deepfake-onnx-models/resolve/main';
+
 const MODEL_URLS = {
-  vitDeepfakeExp:   '/models/onnx/vit_deepfake_exp.onnx',
-  vitDeepfakeV2:    '/models/onnx/vit_deepfake_v2.onnx',
-  deepfakeDetector: '/models/onnx/deepfake_detector.onnx',
-  aiDetector:       '/models/onnx/ai_detector_int8.onnx',
-  efficientnetB4:   '/models/onnx/efficientnet_b4.onnx',    // Powerful model (95-97% accuracy)
-  xceptionNet:      '/models/onnx/xception_net.onnx',       // FaceForensics++ champion (97-99%)
-  resnet50:         '/models/onnx/resnet50.onnx',           // Balanced model (94-96%)
+  vitDeepfakeExp:   `${HF_BASE}/vit_deepfake_exp.onnx`,
+  vitDeepfakeV2:    `${HF_BASE}/vit_deepfake_v2.onnx`,
+  deepfakeDetector: `${HF_BASE}/deepfake_detector.onnx`,
+  aiDetector:       `${HF_BASE}/ai_detector_int8.onnx`,
+  efficientnetB4:   `${HF_BASE}/efficientnet_b4.onnx`,      // Powerful model (95-97% accuracy)
+  xceptionNet:      `${HF_BASE}/xception_net.onnx`,         // FaceForensics++ champion (97-99%)
+  resnet50:         `${HF_BASE}/resnet50.onnx`,             // Balanced model (94-96%)
 } as const;
+
+// Note: Models with .onnx.data files (efficientnetB4, xceptionNet, resnet50)
+// The .data files are automatically fetched by ONNX Runtime from the same directory
 
 // Required for ONNX Runtime multi-threaded WASM
 // (COOP/COEP headers must also be set in vercel.json + vite.config.ts)
@@ -51,7 +56,7 @@ export interface OnnxDetectionResult {
 
 const IDB_NAME  = 'onnx-model-cache';
 const IDB_STORE = 'models';
-const CACHE_VERSION = 'v2'; // Increment to invalidate old corrupted cache
+const CACHE_VERSION = 'v3-hf'; // v3: Using Hugging Face URLs instead of local files
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -109,33 +114,38 @@ const sessions:   Partial<Record<ModelKey, ort.InferenceSession>> = {};
 const loadErrors: Partial<Record<ModelKey, boolean>>              = {};
 
 /**
- * Returns a cached ONNX session, downloading and caching the model
- * in IndexedDB on first use so subsequent loads are instant.
+ * Returns a cached ONNX session, downloading from Hugging Face
+ * and caching in IndexedDB on first use for instant subsequent loads.
+ * 
+ * All models load from Hugging Face URLs. Models with external .data files
+ * (efficientnetB4, xceptionNet, resnet50) have their .data files automatically
+ * fetched by ONNX Runtime from the same HF directory.
  */
 async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
   if (loadErrors[key]) return null;
   if (sessions[key])   return sessions[key]!;
 
   try {
-    // Models with external data files (split into .onnx + .onnx.data)
+    // Models with external data files need URL-based loading
+    // so ONNX Runtime can fetch the companion .data file from Hugging Face
     const externalDataModels = ['efficientnetB4', 'xceptionNet', 'resnet50'];
     const needsExternalData = externalDataModels.includes(key);
 
     if (needsExternalData) {
       // Always load from URL for models with external data
       // ONNX Runtime will automatically fetch the companion .data file
-      console.log(`⬇️  Loading ONNX model from URL: ${key} (external .data file)`);
+      console.log(`⬇️  Loading ONNX model from HuggingFace: ${key} (external .data file)`);
       updateModelStatus(key, 'downloading');
 
       sessions[key] = await ort.InferenceSession.create(MODEL_URLS[key], {
         executionProviders: ['wasm'],
       });
     } else {
-      // For single-file models, use buffer approach
+      // For single-file models, cache in IndexedDB
       let buffer = await idbGet(key);
 
       if (!buffer) {
-        console.log(`⬇️  Downloading ONNX model: ${key} (first time only)`);
+        console.log(`⬇️  Downloading ONNX model from HuggingFace: ${key} (first time only)`);
         updateModelStatus(key, 'downloading');
         const res = await fetch(MODEL_URLS[key]);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -150,7 +160,7 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
         executionProviders: ['wasm'],
       });
     }
-
+    
     console.log(`✅ ONNX ready: ${key}`);
     updateModelStatus(key, 'ready');
     return sessions[key]!;
