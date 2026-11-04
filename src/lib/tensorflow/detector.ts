@@ -184,8 +184,7 @@ export class DeepfakeDetector {
       const { updateModelStatus } = await import('@/components/ModelLoadingStatus');
       updateModelStatus('mesonet', 'error');
       
-      // Re-throw to signal failure
-      throw error;
+      // Don't re-throw - allow initialization to continue
     }
   }
 

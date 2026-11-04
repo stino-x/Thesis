@@ -3,9 +3,11 @@
  * 
  * Detects faces and provides bounding boxes
  * First step in the detection pipeline
+ * 
+ * Using MediaPipe Tasks Vision API (new, stable)
  */
 
-import { FaceDetection } from '@mediapipe/face_detection';
+import { FaceDetector as MediaPipeFaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 
 export interface FaceDetectionResult {
   detected: boolean;
@@ -19,33 +21,40 @@ export interface FaceDetectionResult {
 }
 
 export class FaceDetector {
-  private faceDetection: FaceDetection | null = null;
+  private faceDetector: MediaPipeFaceDetector | null = null;
   private isInitialized = false;
+  private initError: Error | null = null;
 
   constructor() {
     this.initialize();
   }
 
   /**
-   * Initialize MediaPipe Face Detection
+   * Initialize MediaPipe Face Detection (Tasks Vision API)
    */
   private async initialize(): Promise<void> {
     try {
-      this.faceDetection = new FaceDetection({
-        locateFile: (file) => {
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+      // Load WASM files from CDN
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+
+      // Create face detector
+      this.faceDetector = await MediaPipeFaceDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+          delegate: 'GPU',
         },
+        runningMode: 'IMAGE',
+        minDetectionConfidence: 0.3,
       });
 
-      this.faceDetection.setOptions({
-        model: 'short', // 'short' for close-range, 'full' for longer range
-        minDetectionConfidence: 0.3, // Lower threshold for better detection
-      });
-
-      await this.faceDetection.initialize();
       this.isInitialized = true;
+      console.log('✅ MediaPipe Face Detection (Tasks API) initialized');
     } catch (error) {
       console.error('Failed to initialize Face Detection:', error);
+      this.initError = error as Error;
+      this.isInitialized = true; // Mark as initialized to prevent hanging
       throw error;
     }
   }
@@ -57,6 +66,9 @@ export class FaceDetector {
     while (!this.isInitialized) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
+    if (this.initError) {
+      throw this.initError;
+    }
   }
 
   /**
@@ -65,48 +77,47 @@ export class FaceDetector {
   async detect(
     input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
   ): Promise<FaceDetectionResult[]> {
-    if (!this.faceDetection || !this.isInitialized) {
+    if (!this.faceDetector || !this.isInitialized) {
       await this.waitForInitialization();
     }
 
-    return new Promise((resolve) => {
-      this.faceDetection!.onResults((results: any) => {
-        if (!results.detections || results.detections.length === 0) {
-          resolve([{ detected: false }]);
-          return;
-        }
+    if (!this.faceDetector) {
+      return [{ detected: false }];
+    }
 
-        const detections = results.detections.map((detection: any) => {
-          const bbox = detection.boundingBox;
-          return {
-            detected: true,
-            boundingBox: {
-              xMin: bbox.xMin,
-              yMin: bbox.yMin,
-              width: bbox.width,
-              height: bbox.height,
-            },
-            score: detection.score[0],
-          };
-        });
+    try {
+      const results = this.faceDetector.detect(input);
 
-        resolve(detections);
+      if (!results.detections || results.detections.length === 0) {
+        return [{ detected: false }];
+      }
+
+      return results.detections.map((detection) => {
+        const bbox = detection.boundingBox;
+        return {
+          detected: true,
+          boundingBox: {
+            xMin: bbox.originX / (input.width || 1),
+            yMin: bbox.originY / (input.height || 1),
+            width: bbox.width / (input.width || 1),
+            height: bbox.height / (input.height || 1),
+          },
+          score: detection.categories[0]?.score || 0,
+        };
       });
-
-      this.faceDetection!.send({ image: input }).catch((error: any) => {
-        console.error('Face detection error:', error);
-        resolve([{ detected: false }]);
-      });
-    });
+    } catch (error) {
+      console.error('Face detection error:', error);
+      return [{ detected: false }];
+    }
   }
 
   /**
    * Close and cleanup
    */
   close(): void {
-    if (this.faceDetection) {
-      this.faceDetection.close();
-      this.faceDetection = null;
+    if (this.faceDetector) {
+      this.faceDetector.close();
+      this.faceDetector = null;
       this.isInitialized = false;
     }
   }

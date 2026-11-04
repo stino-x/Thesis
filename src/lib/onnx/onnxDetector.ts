@@ -114,23 +114,55 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
   if (sessions[key])   return sessions[key]!;
 
   try {
-    let buffer = await idbGet(key);
+    // Models with external data files (split into .onnx + .onnx.data)
+    const externalDataModels = ['efficientnetB4', 'xceptionNet', 'resnet50'];
+    const needsExternalData = externalDataModels.includes(key);
 
-    if (!buffer) {
-      console.log(`⬇️  Downloading ONNX model: ${key} (first time only)`);
-      updateModelStatus(key, 'downloading');
-      const res = await fetch(MODEL_URLS[key]);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      buffer = await res.arrayBuffer();
-      idbSet(key, buffer);
+    if (needsExternalData) {
+      // For models with .onnx.data files, load from URL directly
+      // (ONNX Runtime will automatically fetch the .data file)
+      const cached = await idbGet(key);
+      if (cached) {
+        console.log(`✅ Cached ONNX model: ${key}`);
+        updateModelStatus(key, 'cached');
+      } else {
+        console.log(`⬇️  Downloading ONNX model: ${key} (first time only)`);
+        updateModelStatus(key, 'downloading');
+      }
+
+      sessions[key] = await ort.InferenceSession.create(MODEL_URLS[key], {
+        executionProviders: ['wasm'],
+      });
+
+      // Cache the main model file for next time
+      if (!cached) {
+        const res = await fetch(MODEL_URLS[key]);
+        if (res.ok) {
+          const buffer = await res.arrayBuffer();
+          idbSet(key, buffer);
+        }
+      }
     } else {
-      console.log(`📦 ONNX model from cache: ${key}`);
-      updateModelStatus(key, 'cached');
+      // For single-file models, use buffer approach
+      let buffer = await idbGet(key);
+
+      if (!buffer) {
+        console.log(`⬇️  Downloading ONNX model: ${key} (first time only)`);
+        updateModelStatus(key, 'downloading');
+        const res = await fetch(MODEL_URLS[key]);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        buffer = await res.arrayBuffer();
+        idbSet(key, buffer);
+      } else {
+        console.log(`✅ Cached ONNX model: ${key}`);
+        updateModelStatus(key, 'cached');
+      }
+
+      sessions[key] = await ort.InferenceSession.create(buffer, {
+        executionProviders: ['wasm'],
+      });
     }
 
-    sessions[key] = await ort.InferenceSession.create(buffer, {
-      executionProviders: ['wasm'],
-    });
     console.log(`✅ ONNX ready: ${key}`);
     updateModelStatus(key, 'ready');
     return sessions[key]!;
