@@ -51,6 +51,7 @@ export interface OnnxDetectionResult {
 
 const IDB_NAME  = 'onnx-model-cache';
 const IDB_STORE = 'models';
+const CACHE_VERSION = 'v2'; // Increment to invalidate old corrupted cache
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -66,7 +67,8 @@ async function idbGet(key: string): Promise<ArrayBuffer | null> {
     const db = await openDB();
     return new Promise(resolve => {
       const tx  = db.transaction(IDB_STORE, 'readonly');
-      const req = tx.objectStore(IDB_STORE).get(key);
+      const versionedKey = `${CACHE_VERSION}:${key}`;
+      const req = tx.objectStore(IDB_STORE).get(versionedKey);
       req.onsuccess = () => resolve((req.result as ArrayBuffer) ?? null);
       req.onerror   = () => {
         console.warn(`⚠️  IndexedDB read failed for ${key}:`, req.error);
@@ -84,7 +86,8 @@ async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
     const db = await openDB();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put(value, key);
+      const versionedKey = `${CACHE_VERSION}:${key}`;
+      tx.objectStore(IDB_STORE).put(value, versionedKey);
       tx.oncomplete = () => {
         console.log(`✅ Cached ONNX model: ${key}`);
         resolve();
@@ -119,29 +122,14 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
     const needsExternalData = externalDataModels.includes(key);
 
     if (needsExternalData) {
-      // For models with .onnx.data files, load from URL directly
-      // (ONNX Runtime will automatically fetch the .data file)
-      const cached = await idbGet(key);
-      if (cached) {
-        console.log(`✅ Cached ONNX model: ${key}`);
-        updateModelStatus(key, 'cached');
-      } else {
-        console.log(`⬇️  Downloading ONNX model: ${key} (first time only)`);
-        updateModelStatus(key, 'downloading');
-      }
+      // Always load from URL for models with external data
+      // ONNX Runtime will automatically fetch the companion .data file
+      console.log(`⬇️  Loading ONNX model from URL: ${key} (external .data file)`);
+      updateModelStatus(key, 'downloading');
 
       sessions[key] = await ort.InferenceSession.create(MODEL_URLS[key], {
         executionProviders: ['wasm'],
       });
-
-      // Cache the main model file for next time
-      if (!cached) {
-        const res = await fetch(MODEL_URLS[key]);
-        if (res.ok) {
-          const buffer = await res.arrayBuffer();
-          idbSet(key, buffer);
-        }
-      }
     } else {
       // For single-file models, use buffer approach
       let buffer = await idbGet(key);
