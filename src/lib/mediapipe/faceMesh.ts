@@ -3,11 +3,11 @@
  * 
  * Provides 468 facial landmarks for detailed analysis
  * Core component for deepfake detection
+ * 
+ * Using MediaPipe Tasks Vision API (new, stable)
  */
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - MediaPipe face_mesh package types
-import { FaceMesh } from '@mediapipe/face_mesh';
+import { FaceLandmarker, FilesetResolver, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 
 export interface Landmark {
   x: number;
@@ -22,36 +22,45 @@ export interface FaceMeshResult {
 }
 
 export class FaceMeshDetector {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private faceMesh: any = null;
+  private faceLandmarker: FaceLandmarker | null = null;
   private isInitialized = false;
+  private initError: Error | null = null;
 
   constructor() {
     this.initialize();
   }
 
   /**
-   * Initialize MediaPipe Face Mesh
+   * Initialize MediaPipe Face Landmarker (Tasks Vision API)
    */
   private async initialize(): Promise<void> {
     try {
-      this.faceMesh = new FaceMesh({
-        locateFile: (file) => {
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+      // Load WASM files from CDN
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+
+      // Create face landmarker
+      this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+          delegate: 'GPU',
         },
-      });
-
-      this.faceMesh.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: true, // Enables iris landmarks
-        minDetectionConfidence: 0.5,
+        runningMode: 'IMAGE',
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.5,
+        minFacePresenceConfidence: 0.5,
         minTrackingConfidence: 0.5,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
       });
 
-      await this.faceMesh.initialize();
       this.isInitialized = true;
+      console.log('✅ MediaPipe Face Landmarker (Tasks API) initialized');
     } catch (error) {
       console.error('Failed to initialize Face Mesh:', error);
+      this.initError = error as Error;
+      this.isInitialized = true; // Mark as initialized to prevent hanging
       throw error;
     }
   }
@@ -63,6 +72,9 @@ export class FaceMeshDetector {
     while (!this.isInitialized) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
+    if (this.initError) {
+      throw this.initError;
+    }
   }
 
   /**
@@ -71,29 +83,41 @@ export class FaceMeshDetector {
   async detect(
     input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
   ): Promise<FaceMeshResult> {
-    if (!this.faceMesh || !this.isInitialized) {
+    if (!this.faceLandmarker || !this.isInitialized) {
       await this.waitForInitialization();
     }
 
-    return new Promise((resolve) => {
-      this.faceMesh!.onResults((results: any) => {
-        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-          resolve({ detected: false });
-          return;
-        }
+    if (!this.faceLandmarker) {
+      return { detected: false };
+    }
 
-        resolve({
-          detected: true,
-          landmarks: results.multiFaceLandmarks[0] as Landmark[],
-          multiFaceLandmarks: results.multiFaceLandmarks as Landmark[][],
-        });
-      });
+    try {
+      const results: FaceLandmarkerResult = this.faceLandmarker.detect(input);
 
-      this.faceMesh!.send({ image: input }).catch((error: any) => {
-        console.error('Face mesh detection error:', error);
-        resolve({ detected: false });
-      });
-    });
+      if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
+        return { detected: false };
+      }
+
+      // Convert to the expected format
+      const landmarks: Landmark[] = results.faceLandmarks[0].map(lm => ({
+        x: lm.x,
+        y: lm.y,
+        z: lm.z || 0,
+      }));
+
+      const multiFaceLandmarks: Landmark[][] = results.faceLandmarks.map(face =>
+        face.map(lm => ({ x: lm.x, y: lm.y, z: lm.z || 0 }))
+      );
+
+      return {
+        detected: true,
+        landmarks,
+        multiFaceLandmarks,
+      };
+    } catch (error) {
+      console.error('Face mesh detection error:', error);
+      return { detected: false };
+    }
   }
 
   /**
@@ -164,9 +188,9 @@ export class FaceMeshDetector {
    * Close and cleanup
    */
   close(): void {
-    if (this.faceMesh) {
-      this.faceMesh.close();
-      this.faceMesh = null;
+    if (this.faceLandmarker) {
+      this.faceLandmarker.close();
+      this.faceLandmarker = null;
       this.isInitialized = false;
     }
   }
