@@ -22,13 +22,10 @@ const MODEL_URLS = {
   vitDeepfakeV2:    `${HF_BASE}/vit_deepfake_v2.onnx`,
   deepfakeDetector: `${HF_BASE}/deepfake_detector.onnx`,
   aiDetector:       `${HF_BASE}/ai_detector_int8.onnx`,
-  efficientnetB4:   `${HF_BASE}/efficientnet_b4.onnx`,      // Powerful model (95-97% accuracy)
-  xceptionNet:      `${HF_BASE}/xception_net.onnx`,         // FaceForensics++ champion (97-99%)
-  resnet50:         `${HF_BASE}/resnet50.onnx`,             // Balanced model (94-96%)
+  efficientnetB4:   `${HF_BASE}/efficientnet_b4_embedded.onnx`,
+  xceptionNet:      `${HF_BASE}/xception_net_embedded.onnx`,
+  resnet50:         `${HF_BASE}/resnet50_embedded.onnx`,
 } as const;
-
-// Note: Models with .onnx.data files (efficientnetB4, xceptionNet, resnet50)
-// The .data files are automatically fetched by ONNX Runtime from the same directory
 
 // Required for ONNX Runtime multi-threaded WASM
 // (COOP/COEP headers must also be set in vercel.json + vite.config.ts)
@@ -56,7 +53,7 @@ export interface OnnxDetectionResult {
 
 const IDB_NAME  = 'onnx-model-cache';
 const IDB_STORE = 'models';
-const CACHE_VERSION = 'v3-hf'; // v3: Using Hugging Face URLs instead of local files
+const CACHE_VERSION = 'v4-embedded'; // v4: Using single-file embedded ONNX models (all 7 models working)
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -112,54 +109,56 @@ async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
 
 const sessions:   Partial<Record<ModelKey, ort.InferenceSession>> = {};
 const loadErrors: Partial<Record<ModelKey, boolean>>              = {};
+const sessionLocks: Partial<Record<ModelKey, Promise<any>>>        = {}; // Prevent concurrent inference
 
 /**
  * Returns a cached ONNX session, downloading from Hugging Face
  * and caching in IndexedDB on first use for instant subsequent loads.
- * 
- * All models load from Hugging Face URLs. Models with external .data files
- * (efficientnetB4, xceptionNet, resnet50) have their .data files automatically
- * fetched by ONNX Runtime from the same HF directory.
  */
 async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
   if (loadErrors[key]) return null;
   if (sessions[key])   return sessions[key]!;
 
   try {
-    // Models with external data files need URL-based loading
-    // so ONNX Runtime can fetch the companion .data file from Hugging Face
-    const externalDataModels = ['efficientnetB4', 'xceptionNet', 'resnet50'];
-    const needsExternalData = externalDataModels.includes(key);
+    // All models use IndexedDB caching
+    let buffer = await idbGet(key);
 
-    if (needsExternalData) {
-      // Always load from URL for models with external data
-      // ONNX Runtime will automatically fetch the companion .data file
-      console.log(`⬇️  Loading ONNX model from HuggingFace: ${key} (external .data file)`);
+    if (!buffer) {
+      console.log(`⬇️  Downloading ONNX model from HuggingFace: ${key} (first time only)`);
       updateModelStatus(key, 'downloading');
-
-      sessions[key] = await ort.InferenceSession.create(MODEL_URLS[key], {
-        executionProviders: ['wasm'],
-      });
-    } else {
-      // For single-file models, cache in IndexedDB
-      let buffer = await idbGet(key);
-
-      if (!buffer) {
-        console.log(`⬇️  Downloading ONNX model from HuggingFace: ${key} (first time only)`);
-        updateModelStatus(key, 'downloading');
-        const res = await fetch(MODEL_URLS[key]);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        buffer = await res.arrayBuffer();
-        idbSet(key, buffer);
-      } else {
-        console.log(`✅ Cached ONNX model: ${key}`);
-        updateModelStatus(key, 'cached');
+      
+      // Retry logic for large files (vitDeepfakeV2 had network issues)
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const res = await fetch(MODEL_URLS[key]);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          buffer = await res.arrayBuffer();
+          break; // Success!
+        } catch (e) {
+          lastError = e as Error;
+          if (attempt < maxRetries) {
+            console.log(`   Retry ${attempt}/${maxRetries} for ${key}...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+          }
+        }
       }
-
-      sessions[key] = await ort.InferenceSession.create(buffer, {
-        executionProviders: ['wasm'],
-      });
+      
+      if (!buffer) {
+        throw lastError || new Error('Failed to download after retries');
+      }
+      
+      idbSet(key, buffer);
+    } else {
+      console.log(`✅ Cached ONNX model: ${key}`);
+      updateModelStatus(key, 'cached');
     }
+
+    sessions[key] = await ort.InferenceSession.create(buffer, {
+      executionProviders: ['wasm'],
+    });
     
     console.log(`✅ ONNX ready: ${key}`);
     updateModelStatus(key, 'ready');
@@ -230,11 +229,24 @@ async function runModel(
   const session = await getSession(key);
   if (!session) return { score: 0, available: false };
 
+  // Wait for any ongoing inference on this session to complete
+  while (sessionLocks[key]) {
+    await sessionLocks[key];
+  }
+
   try {
+    // Create a lock for this inference
+    let releaseLock!: () => void;
+    sessionLocks[key] = new Promise<void>(resolve => { releaseLock = resolve; });
+
     const tensor     = canvasToTensor(canvas, size, normalize);
     const inputName  = session.inputNames[0];
     const output     = await session.run({ [inputName]: tensor });
     const outputData = output[session.outputNames[0]].data as Float32Array;
+
+    // Release lock
+    releaseLock();
+    delete sessionLocks[key];
 
     // Handle both 2-logit (softmax) and single sigmoid outputs
     let score: number;
@@ -248,6 +260,8 @@ async function runModel(
 
     return { score, available: true };
   } catch (e) {
+    // Release lock on error
+    delete sessionLocks[key];
     console.warn(`ONNX inference error (${key}):`, e);
     return { score: 0, available: false };
   }
@@ -261,16 +275,17 @@ export async function detectWithOnnx(
 ): Promise<OnnxDetectionResult> {
   const anomalies: string[] = [];
 
-  // Crop + align face before running ViT/Xception/EfficientNet models
+  // Crop + align face before running ViT models
   const faceCanvas = cropFaceFromCanvas(canvas, faceBbox, 0.20, eyePoints);
 
-  const [vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, xceptionNet, efficientnetB4, resnet50] = await Promise.all([
+  // Run all 7 ONNX models (now including embedded versions of efficientnetB4, xceptionNet, resnet50)
+  const [vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, efficientnetB4, xceptionNet, resnet50] = await Promise.all([
     runModel('vitDeepfakeExp',   faceCanvas, 224),
     runModel('vitDeepfakeV2',    faceCanvas, 224),
     runModel('deepfakeDetector', faceCanvas, 224),
     runModel('aiDetector',       canvas,     224),
-    runModel('xceptionNet',      faceCanvas, 299, 'range1'),
-    runModel('efficientnetB4',   faceCanvas, 380),
+    runModel('efficientnetB4',   faceCanvas, 224),
+    runModel('xceptionNet',      faceCanvas, 224),
     runModel('resnet50',         faceCanvas, 224),
   ]);
 
@@ -278,8 +293,8 @@ export async function detectWithOnnx(
   if (vitDeepfakeV2.available    && vitDeepfakeV2.score    > 0.7) anomalies.push('vit_deepfake_v2_signal');
   if (deepfakeDetector.available && deepfakeDetector.score > 0.7) anomalies.push('deepfake_signal');
   if (aiDetector.available       && aiDetector.score       > 0.7) anomalies.push('ai_generation_signal');
-  if (xceptionNet.available      && xceptionNet.score      > 0.7) anomalies.push('xception_signal');
   if (efficientnetB4.available   && efficientnetB4.score   > 0.7) anomalies.push('efficientnet_signal');
+  if (xceptionNet.available      && xceptionNet.score      > 0.7) anomalies.push('xception_signal');
   if (resnet50.available         && resnet50.score         > 0.7) anomalies.push('resnet_signal');
 
   return { vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, xceptionNet, efficientnetB4, resnet50, anomalies };

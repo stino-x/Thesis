@@ -35,6 +35,9 @@ dist-ssr
 backend/weights/
 scripts/cache/
 
+# Embedded ONNX models (hosted on Hugging Face, not in repo)
+public/models/onnx/*_embedded.onnx
+
 # Python virtualenvs (any name/location)
 __pycache__/
 *.pyc

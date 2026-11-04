@@ -1,0 +1,12 @@
+{
+  "note": "If you see this file with correct sizes, LFS is working. If sizes are tiny (~100-200 bytes), LFS failed and you're getting pointer files.",
+  "expected_sizes_mb": {
+    "vit_deepfake_exp.onnx": 327,
+    "vit_deepfake_v2.onnx": 327,
+    "ai_detector_int8.onnx": 307,
+    "deepfake_detector.onnx": 91,
+    "efficientnet_b4.onnx": 1.2,
+    "xception_net.onnx": 0.07,
+    "resnet50.onnx": 0.23
+  }
+}
