@@ -109,7 +109,18 @@ async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
 
 const sessions:   Partial<Record<ModelKey, ort.InferenceSession>> = {};
 const loadErrors: Partial<Record<ModelKey, boolean>>              = {};
-const sessionLocks: Partial<Record<ModelKey, Promise<any>>>        = {}; // Prevent concurrent inference
+
+// Proper mutex implementation with queue to prevent concurrent session usage
+interface QueuedInference {
+  resolve: (result: OnnxModelResult) => void;
+  reject: (error: any) => void;
+  canvas: HTMLCanvasElement;
+  size: number;
+  normalize: 'imagenet' | 'range1';
+}
+
+const inferenceQueues: Partial<Record<ModelKey, QueuedInference[]>> = {};
+const isProcessing: Partial<Record<ModelKey, boolean>> = {};
 
 /**
  * Returns a cached ONNX session, downloading from Hugging Face
@@ -125,7 +136,7 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
 
     if (!buffer) {
       console.log(`⬇️  Downloading ONNX model from HuggingFace: ${key} (first time only)`);
-      updateModelStatus(key, 'downloading');
+      updateModelStatus(key, 'downloading', 0);
       
       // Retry logic for large files (vitDeepfakeV2 had network issues)
       const maxRetries = 3;
@@ -135,12 +146,50 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
         try {
           const res = await fetch(MODEL_URLS[key]);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          buffer = await res.arrayBuffer();
+          
+          // Get total size for progress tracking
+          const contentLength = res.headers.get('content-length');
+          const total = contentLength ? parseInt(contentLength, 10) : 0;
+          
+          if (total && res.body) {
+            // Track download progress with streaming
+            const reader = res.body.getReader();
+            const chunks: Uint8Array[] = [];
+            let downloaded = 0;
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              chunks.push(value);
+              downloaded += value.length;
+              
+              // Update progress percentage
+              const progress = Math.round((downloaded / total) * 100);
+              updateModelStatus(key, 'downloading', progress);
+              console.log(`   ${key}: ${progress}% (${(downloaded / 1024 / 1024).toFixed(1)} MB / ${(total / 1024 / 1024).toFixed(1)} MB)`);
+            }
+            
+            // Combine chunks into single ArrayBuffer
+            const allChunks = new Uint8Array(downloaded);
+            let position = 0;
+            for (const chunk of chunks) {
+              allChunks.set(chunk, position);
+              position += chunk.length;
+            }
+            buffer = allChunks.buffer;
+          } else {
+            // Fallback for servers without content-length
+            buffer = await res.arrayBuffer();
+            updateModelStatus(key, 'downloading', 100);
+          }
+          
           break; // Success!
         } catch (e) {
           lastError = e as Error;
           if (attempt < maxRetries) {
             console.log(`   Retry ${attempt}/${maxRetries} for ${key}...`);
+            updateModelStatus(key, 'downloading', 0);
             await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
           }
         }
@@ -150,6 +199,7 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
         throw lastError || new Error('Failed to download after retries');
       }
       
+      console.log(`💾 Caching ${key} to IndexedDB...`);
       idbSet(key, buffer);
     } else {
       console.log(`✅ Cached ONNX model: ${key}`);
@@ -220,51 +270,73 @@ function canvasToTensor(canvas: HTMLCanvasElement, size: number, normalize: 'ima
 
 // ─── Inference ────────────────────────────────────────────────────────────────
 
+async function processInferenceQueue(key: ModelKey) {
+  if (isProcessing[key] || !inferenceQueues[key]?.length) return;
+  
+  isProcessing[key] = true;
+  
+  while (inferenceQueues[key]?.length) {
+    const job = inferenceQueues[key]!.shift()!;
+    
+    try {
+      const session = await getSession(key);
+      if (!session) {
+        job.resolve({ score: 0, available: false });
+        continue;
+      }
+
+      const tensor = canvasToTensor(job.canvas, job.size, job.normalize);
+      const inputName = session.inputNames[0];
+      const output = await session.run({ [inputName]: tensor });
+      const outputData = output[session.outputNames[0]].data as Float32Array;
+
+      // Handle both 2-logit (softmax) and single sigmoid outputs
+      let score: number;
+      if (outputData.length === 2) {
+        const expReal = Math.exp(outputData[0]);
+        const expFake = Math.exp(outputData[1]);
+        score = expFake / (expReal + expFake);
+      } else {
+        score = Math.max(0, Math.min(1, outputData[0]));
+      }
+
+      job.resolve({ score, available: true });
+    } catch (e) {
+      console.warn(`ONNX inference error (${key}):`, e);
+      job.reject(e);
+    }
+  }
+  
+  isProcessing[key] = false;
+}
+
 async function runModel(
   key: ModelKey,
   canvas: HTMLCanvasElement,
   size: number,
   normalize: 'imagenet' | 'range1' = 'imagenet'
 ): Promise<OnnxModelResult> {
-  const session = await getSession(key);
-  if (!session) return { score: 0, available: false };
-
-  // Wait for any ongoing inference on this session to complete
-  while (sessionLocks[key]) {
-    await sessionLocks[key];
-  }
-
-  try {
-    // Create a lock for this inference
-    let releaseLock!: () => void;
-    sessionLocks[key] = new Promise<void>(resolve => { releaseLock = resolve; });
-
-    const tensor     = canvasToTensor(canvas, size, normalize);
-    const inputName  = session.inputNames[0];
-    const output     = await session.run({ [inputName]: tensor });
-    const outputData = output[session.outputNames[0]].data as Float32Array;
-
-    // Release lock
-    releaseLock();
-    delete sessionLocks[key];
-
-    // Handle both 2-logit (softmax) and single sigmoid outputs
-    let score: number;
-    if (outputData.length === 2) {
-      const expReal = Math.exp(outputData[0]);
-      const expFake = Math.exp(outputData[1]);
-      score = expFake / (expReal + expFake);
-    } else {
-      score = Math.max(0, Math.min(1, outputData[0]));
+  return new Promise((resolve, reject) => {
+    // Add to queue
+    if (!inferenceQueues[key]) {
+      inferenceQueues[key] = [];
     }
-
-    return { score, available: true };
-  } catch (e) {
-    // Release lock on error
-    delete sessionLocks[key];
-    console.warn(`ONNX inference error (${key}):`, e);
-    return { score: 0, available: false };
-  }
+    
+    inferenceQueues[key]!.push({
+      resolve,
+      reject: (e) => {
+        // On error, return unavailable instead of rejecting
+        console.warn(`ONNX inference error (${key}):`, e);
+        resolve({ score: 0, available: false });
+      },
+      canvas,
+      size,
+      normalize,
+    });
+    
+    // Start processing queue
+    processInferenceQueue(key);
+  });
 }
 
 /** Run all ONNX models on a canvas and return per-model scores */
