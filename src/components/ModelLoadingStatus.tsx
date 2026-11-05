@@ -14,6 +14,7 @@ export interface ModelStatus {
   label: string;
   state: 'pending' | 'downloading' | 'cached' | 'ready' | 'error';
   sizeMb: number;
+  progress?: number; // Download progress 0-100
 }
 
 // Singleton event bus — onnxDetector.ts and detector.ts fire events into this
@@ -32,8 +33,8 @@ let currentStatuses: ModelStatus[] = [
   { key: 'resnet50',         label: 'ResNet50',           state: 'pending', sizeMb: 90  },
 ];
 
-export function updateModelStatus(key: string, state: ModelStatus['state']) {
-  currentStatuses = currentStatuses.map(s => s.key === key ? { ...s, state } : s);
+export function updateModelStatus(key: string, state: ModelStatus['state'], progress?: number) {
+  currentStatuses = currentStatuses.map(s => s.key === key ? { ...s, state, progress } : s);
   listeners.forEach(fn => fn([...currentStatuses]));
 }
 
@@ -74,21 +75,32 @@ export const ModelLoadingStatus = () => {
 
       <Progress value={(readyCount / statuses.length) * 100} className="h-1.5" />
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2">
         {statuses.map(s => (
-          <div key={s.key} className="flex items-center gap-2 text-xs">
-            {s.state === 'ready' || s.state === 'cached'
-              ? <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
-              : s.state === 'downloading'
-              ? <Download className="h-3 w-3 text-primary animate-pulse shrink-0" />
-              : s.state === 'error'
-              ? <span className="h-3 w-3 rounded-full bg-red-500 shrink-0 inline-block" />
-              : <span className="h-3 w-3 rounded-full bg-muted-foreground/30 shrink-0 inline-block" />
-            }
-            <span className="truncate text-muted-foreground">{s.label}</span>
-            <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto shrink-0">
-              {s.state === 'cached' ? 'cached' : `${s.sizeMb}MB`}
-            </Badge>
+          <div key={s.key} className="space-y-1">
+            <div className="flex items-center gap-2 text-xs">
+              {s.state === 'ready' || s.state === 'cached'
+                ? <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                : s.state === 'downloading'
+                ? <Download className="h-3 w-3 text-primary animate-pulse shrink-0" />
+                : s.state === 'error'
+                ? <span className="h-3 w-3 rounded-full bg-red-500 shrink-0 inline-block" />
+                : <span className="h-3 w-3 rounded-full bg-muted-foreground/30 shrink-0 inline-block" />
+              }
+              <span className="truncate text-muted-foreground flex-1">{s.label}</span>
+              {s.state === 'downloading' && s.progress !== undefined ? (
+                <Badge variant="default" className="text-[10px] px-1 py-0 shrink-0 bg-primary/80">
+                  {s.progress}%
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                  {s.state === 'cached' ? 'cached' : `${s.sizeMb}MB`}
+                </Badge>
+              )}
+            </div>
+            {s.state === 'downloading' && s.progress !== undefined && (
+              <Progress value={s.progress} className="h-1" />
+            )}
           </div>
         ))}
       </div>
