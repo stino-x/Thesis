@@ -218,7 +218,7 @@ export class DeepfakeDetector {
    * Group B (AI-generated):      SwinV2-AI-Detector
    * Group C (forensic/texture):  TextureHeuristic, MobileNet fallback
    */
-  async detectFromImage(imageTensor: tf.Tensor, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[]): Promise<DetectionResult> {
+  async detectFromImage(imageTensor: tf.Tensor, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[], abortSignal?: AbortSignal): Promise<DetectionResult> {
     await this.waitForInitialization();
 
     const scores: DetectionResult['scores'] = {};
@@ -249,9 +249,10 @@ export class DeepfakeDetector {
       try {
         const bbox      = faceBbox ? mediapipeBboxToFaceBbox(faceBbox) : null;
         const eyePoints = faceLandmarks ? eyePointsFromLandmarks(faceLandmarks) : undefined;
-        const onnx = await detectWithOnnx(canvas, bbox, eyePoints);
+        const onnx = await detectWithOnnx(canvas, bbox, eyePoints, abortSignal);
 
-        // Group A: face-specific detectors (7 models total)
+        // Group A: face-specific detectors (trained ViT models only)
+        // REMOVED: efficientnetB4, xceptionNet, resnet50 (untrained heads producing noise)
         if (onnx.vitDeepfakeExp?.available) {
           scores.vitDeepfakeExp = onnx.vitDeepfakeExp.score * 100;
           groupA.push([onnx.vitDeepfakeExp.score, 3.0]); // best single model, highest weight
@@ -270,24 +271,7 @@ export class DeepfakeDetector {
           modelsUsed.push('DeepfakeDetector-ONNX');
           if (onnx.deepfakeDetector.score > 0.7) anomalies.push('deepfake_signal');
         }
-        if (onnx.xceptionNet?.available) {
-          scores.xceptionNet = onnx.xceptionNet.score * 100;
-          groupA.push([onnx.xceptionNet.score, 2.5]); // FaceForensics++ champion
-          modelsUsed.push('Xception');
-          if (onnx.xceptionNet.score > 0.7) anomalies.push('xception_signal');
-        }
-        if (onnx.efficientnetB4?.available) {
-          scores.efficientnetB4 = onnx.efficientnetB4.score * 100;
-          groupA.push([onnx.efficientnetB4.score, 2.5]); // powerful model, high accuracy
-          modelsUsed.push('EfficientNet-B4');
-          if (onnx.efficientnetB4.score > 0.7) anomalies.push('efficientnet_signal');
-        }
-        if (onnx.resnet50?.available) {
-          scores.resnet50 = onnx.resnet50.score * 100;
-          groupA.push([onnx.resnet50.score, 2.0]); // balanced model
-          modelsUsed.push('ResNet50');
-          if (onnx.resnet50.score > 0.7) anomalies.push('resnet_signal');
-        }
+        // Group A total weight: 6.5 (was 14.5 with untrained models)
 
         // Group B: AI-generated content detector
         if (onnx.aiDetector?.available) {
@@ -443,23 +427,31 @@ export class DeepfakeDetector {
   /**
    * Ensemble: CNN image result + landmark features combined.
    */
-  async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[]): Promise<DetectionResult> {
+  async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[], abortSignal?: AbortSignal): Promise<DetectionResult> {
     const imageTensor = tf.browser.fromPixels(imageData).div(255.0);
 
     try {
-      const imageResult = await this.detectFromImage(imageTensor, canvas, faceBbox, faceLandmarks);
+      const imageResult = await this.detectFromImage(imageTensor, canvas, faceBbox, faceLandmarks, abortSignal);
 
       if (!features) return imageResult;
 
       const featureResult = await this.detectFromFeatures(features);
 
+      // FIXED: Blend signed scores (confidence × direction), not raw confidence values
+      // Raw confidence blending causes real frames to be flagged as fake
+      const imageScore = imageResult.confidence * (imageResult.isDeepfake ? 1 : -1);
+      const featureScore = featureResult.confidence * (featureResult.isDeepfake ? 1 : -1);
+      
       // Visual models get more weight when real models are loaded
       const cnnWeight = imageResult.modelsUsed.some(m => ['MesoNet4', 'ViT-Deepfake-Exp', 'ViT-Deepfake-v2', 'SwinV2-AI-Detector', 'DeepfakeDetector-ONNX'].includes(m)) ? 0.75 : 0.5;
-      const ensembleScore = (imageResult.confidence * cnnWeight) + (featureResult.confidence * (1 - cnnWeight));
+      const ensembleScore = (imageScore * cnnWeight) + (featureScore * (1 - cnnWeight));
+      
+      const confidence = Math.abs(ensembleScore);
+      const isDeepfake = ensembleScore > 0;
 
       return {
-        isDeepfake: ensembleScore > this.threshold,
-        confidence: ensembleScore,
+        isDeepfake,
+        confidence,
         scores: { ...imageResult.scores, ...featureResult.scores },
         anomalies: Array.from(new Set([...imageResult.anomalies, ...featureResult.anomalies])),
         modelsUsed: Array.from(new Set([...imageResult.modelsUsed, ...featureResult.modelsUsed])),
@@ -483,13 +475,15 @@ export class DeepfakeDetector {
     timestamp?: number;
     isVideoFrame?: boolean;
     univfd?: { score: number; confidence: number; isDeepfake: boolean; anomalies: string[]; modelLoaded: boolean };
+    skipOnnx?: boolean; // Skip ONNX models but keep PPG/temporal
+    abortSignal?: AbortSignal; // For cancellation
   }): Promise<DetectionResult> {
     const { imageData, features, faceMesh, canvas, faceBbox, audioBuffer, file, timestamp, univfd } = options;
 
     const results: Parameters<typeof this.combineMultiModalResults>[0] = {};
 
-    if (imageData) {
-      results.visual = await this.detectEnsemble(imageData, features, canvas, faceBbox, options.faceMesh);
+    if (imageData && !options.skipOnnx) {
+      results.visual = await this.detectEnsemble(imageData, features, canvas, faceBbox, options.faceMesh, options.abortSignal);
     }
     if (file) {
       results.metadata = await getMetadataAnalyzer().analyzeFile(file);
@@ -514,12 +508,16 @@ export class DeepfakeDetector {
     }
 
     // Feed visual result into temporal sliding window (video only)
+    // Even if we skipped ONNX, feed PPG/metadata into temporal
+    // FIXED: Use signed score (-1 to +1) not zeroed score for real frames
     let temporalResult: TemporalAnalysisResult | undefined;
-    if (results.visual && options.isVideoFrame) {
-      const visualScore = results.visual.confidence * (results.visual.isDeepfake ? 1 : 0);
+    if (options.isVideoFrame) {
+      const visualScore = results.visual 
+        ? results.visual.confidence * (results.visual.isDeepfake ? 1 : -1)
+        : 0;
       temporalResult = getTemporalAnalyzer().addFrame({
         score: visualScore,
-        isDeepfake: results.visual.isDeepfake,
+        isDeepfake: results.visual?.isDeepfake ?? false,
         timestamp: options.timestamp ?? Date.now(),
       });
       results.temporal = temporalResult;

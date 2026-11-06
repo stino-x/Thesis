@@ -34,6 +34,9 @@ import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
 import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
+// OpenCV global reference (loaded from opencv.js)
+declare const cv: any;
+
 const ImageAnalyzer = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,9 +140,12 @@ const ImageAnalyzer = () => {
       }
       const loadingTime = performanceMonitor.endMark('image-loading');
 
-      // 1.5. Apply defensive transforms if enabled
+      // Check if OpenCV is available for preprocessing
+      const cvAvailable = typeof cv !== 'undefined' && cv.Mat;
+      
+      // 1.5. Apply defensive transforms if enabled (only if OpenCV available)
       let transformTime = 0;
-      if (settings.enableDefensiveTransforms) {
+      if (settings.enableDefensiveTransforms && cvAvailable) {
         try {
           performanceMonitor.startMark('defensive-transforms');
           const transformedCanvas = await applyDefensiveTransforms(canvas, {
@@ -160,11 +166,23 @@ const ImageAnalyzer = () => {
           toast.warning('Defensive transforms failed, proceeding with original image');
           // Continue with original canvas
         }
+      } else if (settings.enableDefensiveTransforms && !cvAvailable) {
+        console.warn('⚠️  Defensive transforms disabled - OpenCV not available');
+        toast.info('Defensive transforms disabled (OpenCV unavailable)');
       }
 
-      // 2. Preprocess with OpenCV
-      const mat = canvasToMat(canvas);
-      const processed = preprocessForML(mat, 224);
+      // 2. Preprocess with OpenCV (only if available)
+      let processed = null;
+      if (cvAvailable) {
+        try {
+          const mat = canvasToMat(canvas);
+          processed = preprocessForML(mat, 224);
+          deleteMat(mat);
+        } catch (cvError) {
+          console.warn('⚠️  OpenCV preprocessing failed:', cvError);
+          // Continue without OpenCV preprocessing
+        }
+      }
 
       // 3. Face Detection + UnivFD + ELA all in parallel (all independent) with timeout
       performanceMonitor.startMark('face-detection');
