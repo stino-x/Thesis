@@ -13,6 +13,7 @@
 import * as ort from 'onnxruntime-web';
 import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
 import { updateModelStatus } from '@/components/ModelLoadingStatus';
+import { runExclusive } from './ortQueue';
 
 // Load models from Hugging Face (deployed via Git LFS on HF)
 const HF_BASE = 'https://huggingface.co/stino214/deepfake-onnx-models/resolve/main';
@@ -29,7 +30,7 @@ const MODEL_URLS = {
 
 // Required for ONNX Runtime multi-threaded WASM
 // (COOP/COEP headers must also be set in vercel.json + vite.config.ts)
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/';
 
 type ModelKey = keyof typeof MODEL_URLS;
 
@@ -109,24 +110,31 @@ async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
 
 const sessions:   Partial<Record<ModelKey, ort.InferenceSession>> = {};
 const loadErrors: Partial<Record<ModelKey, boolean>>              = {};
-
-// Proper mutex implementation with queue to prevent concurrent session usage
-interface QueuedInference {
-  resolve: (result: OnnxModelResult) => void;
-  reject: (error: any) => void;
-  canvas: HTMLCanvasElement;
-  size: number;
-  normalize: 'imagenet' | 'range1';
-}
-
-const inferenceQueues: Partial<Record<ModelKey, QueuedInference[]>> = {};
-const isProcessing: Partial<Record<ModelKey, boolean>> = {};
+const pending:    Partial<Record<ModelKey, Promise<ort.InferenceSession | null>>> = {};
 
 /**
  * Returns a cached ONNX session, downloading from Hugging Face
  * and caching in IndexedDB on first use for instant subsequent loads.
+ * Deduplicates concurrent calls to avoid double-downloading.
  */
 async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
+  if (loadErrors[key]) return null;
+  if (sessions[key])   return sessions[key]!;
+  
+  // Dedupe in-flight loads
+  if (pending[key]) return pending[key]!;
+  
+  pending[key] = loadSession(key).finally(() => {
+    delete pending[key];
+  });
+  
+  return pending[key]!;
+}
+
+/**
+ * Load a session from HuggingFace or IndexedDB cache
+ */
+async function loadSession(key: ModelKey): Promise<ort.InferenceSession | null> {
   if (loadErrors[key]) return null;
   if (sessions[key])   return sessions[key]!;
 
@@ -164,10 +172,9 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
               chunks.push(value);
               downloaded += value.length;
               
-              // Update progress percentage
+              // Update progress percentage (UI only)
               const progress = Math.round((downloaded / total) * 100);
               updateModelStatus(key, 'downloading', progress);
-              console.log(`   ${key}: ${progress}% (${(downloaded / 1024 / 1024).toFixed(1)} MB / ${(total / 1024 / 1024).toFixed(1)} MB)`);
             }
             
             // Combine chunks into single ArrayBuffer
@@ -206,8 +213,10 @@ async function getSession(key: ModelKey): Promise<ort.InferenceSession | null> {
       updateModelStatus(key, 'cached');
     }
 
-    sessions[key] = await ort.InferenceSession.create(buffer, {
-      executionProviders: ['wasm'],
+    sessions[key] = await runExclusive(async () => {
+      return await ort.InferenceSession.create(buffer, {
+        executionProviders: ['wasm'],
+      });
     });
     
     console.log(`✅ ONNX ready: ${key}`);
@@ -270,73 +279,48 @@ function canvasToTensor(canvas: HTMLCanvasElement, size: number, normalize: 'ima
 
 // ─── Inference ────────────────────────────────────────────────────────────────
 
-async function processInferenceQueue(key: ModelKey) {
-  if (isProcessing[key] || !inferenceQueues[key]?.length) return;
-  
-  isProcessing[key] = true;
-  
-  while (inferenceQueues[key]?.length) {
-    const job = inferenceQueues[key]!.shift()!;
-    
-    try {
-      const session = await getSession(key);
-      if (!session) {
-        job.resolve({ score: 0, available: false });
-        continue;
-      }
-
-      const tensor = canvasToTensor(job.canvas, job.size, job.normalize);
-      const inputName = session.inputNames[0];
-      const output = await session.run({ [inputName]: tensor });
-      const outputData = output[session.outputNames[0]].data as Float32Array;
-
-      // Handle both 2-logit (softmax) and single sigmoid outputs
-      let score: number;
-      if (outputData.length === 2) {
-        const expReal = Math.exp(outputData[0]);
-        const expFake = Math.exp(outputData[1]);
-        score = expFake / (expReal + expFake);
-      } else {
-        score = Math.max(0, Math.min(1, outputData[0]));
-      }
-
-      job.resolve({ score, available: true });
-    } catch (e) {
-      console.warn(`ONNX inference error (${key}):`, e);
-      job.reject(e);
-    }
-  }
-  
-  isProcessing[key] = false;
-}
-
 async function runModel(
   key: ModelKey,
   canvas: HTMLCanvasElement,
   size: number,
   normalize: 'imagenet' | 'range1' = 'imagenet'
 ): Promise<OnnxModelResult> {
-  return new Promise((resolve, reject) => {
-    // Add to queue
-    if (!inferenceQueues[key]) {
-      inferenceQueues[key] = [];
-    }
-    
-    inferenceQueues[key]!.push({
-      resolve,
-      reject: (e) => {
-        // On error, return unavailable instead of rejecting
-        console.warn(`ONNX inference error (${key}):`, e);
-        resolve({ score: 0, available: false });
-      },
-      canvas,
-      size,
-      normalize,
+  const session = await getSession(key);
+  if (!session) return { score: 0, available: false };
+
+  try {
+    // Use global mutex to serialize ALL session.run() calls across all models
+    // ONNX Runtime JSEP layer only allows one inference at a time globally
+    const outputData = await runExclusive(async () => {
+      const tensor = canvasToTensor(canvas, size, normalize);
+      const inputName = session.inputNames[0];
+      const output = await session.run({ [inputName]: tensor });
+      
+      // Copy output data synchronously inside the lock
+      // WebGPU tensors can be GPU-backed and must be read before next inference
+      const data = Float32Array.from(output[session.outputNames[0]].data as Float32Array);
+      
+      // Dispose tensors
+      Object.values(output).forEach(t => (t as ort.Tensor).dispose?.());
+      
+      return data;
     });
-    
-    // Start processing queue
-    processInferenceQueue(key);
-  });
+
+    // Handle both 2-logit (softmax) and single sigmoid outputs
+    let score: number;
+    if (outputData.length === 2) {
+      const expReal = Math.exp(outputData[0]);
+      const expFake = Math.exp(outputData[1]);
+      score = expFake / (expReal + expFake);
+    } else {
+      score = Math.max(0, Math.min(1, outputData[0]));
+    }
+
+    return { score, available: true };
+  } catch (e) {
+    console.warn(`ONNX inference error (${key}):`, e);
+    return { score: 0, available: false };
+  }
 }
 
 /** Run all ONNX models on a canvas and return per-model scores */
@@ -350,16 +334,14 @@ export async function detectWithOnnx(
   // Crop + align face before running ViT models
   const faceCanvas = cropFaceFromCanvas(canvas, faceBbox, 0.20, eyePoints);
 
-  // Run all 7 ONNX models (now including embedded versions of efficientnetB4, xceptionNet, resnet50)
-  const [vitDeepfakeExp, vitDeepfakeV2, deepfakeDetector, aiDetector, efficientnetB4, xceptionNet, resnet50] = await Promise.all([
-    runModel('vitDeepfakeExp',   faceCanvas, 224),
-    runModel('vitDeepfakeV2',    faceCanvas, 224),
-    runModel('deepfakeDetector', faceCanvas, 224),
-    runModel('aiDetector',       canvas,     224),
-    runModel('efficientnetB4',   faceCanvas, 224),
-    runModel('xceptionNet',      faceCanvas, 224),
-    runModel('resnet50',         faceCanvas, 224),
-  ]);
+  // Run models SEQUENTIALLY (not Promise.all) - combined with global mutex for ONNX JSEP restriction
+  const vitDeepfakeExp = await runModel('vitDeepfakeExp', faceCanvas, 224);
+  const vitDeepfakeV2 = await runModel('vitDeepfakeV2', faceCanvas, 224);
+  const deepfakeDetector = await runModel('deepfakeDetector', faceCanvas, 224);
+  const aiDetector = await runModel('aiDetector', canvas, 224);
+  const efficientnetB4 = await runModel('efficientnetB4', faceCanvas, 224);
+  const xceptionNet = await runModel('xceptionNet', faceCanvas, 224);
+  const resnet50 = await runModel('resnet50', faceCanvas, 224);
 
   if (vitDeepfakeExp.available   && vitDeepfakeExp.score   > 0.7) anomalies.push('vit_deepfake_signal');
   if (vitDeepfakeV2.available    && vitDeepfakeV2.score    > 0.7) anomalies.push('vit_deepfake_v2_signal');
