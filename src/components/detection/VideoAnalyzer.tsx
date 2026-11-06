@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
-import { Upload, Video as VideoIcon, AlertCircle, CheckCircle, Download, Play, Pause, RefreshCw, Sparkles, Eye } from 'lucide-react';
+import { Video as VideoIcon, AlertCircle, CheckCircle, Download, Play, Pause, RefreshCw, Sparkles, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { UploadZone } from '@/components/ui/upload-zone';
@@ -174,7 +174,7 @@ const VideoAnalyzer = () => {
         });
 
       // Try UnivFD but don't block if it fails
-      let univfd: any = undefined;
+      let univfd: { score: number; confidence: number; isDeepfake: boolean; anomalies: string[]; modelLoaded: boolean } | undefined;
       try {
         univfd = await detectWithUnivFD(canvas, selectedFile.name).catch(() => null);
         if (univfd) {
@@ -195,19 +195,36 @@ const VideoAnalyzer = () => {
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity);
 
+      // Sample frames for ONNX (every 4th frame) to reduce computational load
+      // BUT keep feeding all frames to PPG and temporal analyzers (they need high frame rate)
+      // 109 frames × 7 models = ~760 serial ONNX inferences is excessive
+      const onnxFrameIndices = new Set(
+        frames.map((_, idx) => idx).filter(idx => idx % 4 === 0)
+      );
+      console.log(`📊 Will run ONNX on ${onnxFrameIndices.size}/${frames.length} frames (every 4th)`);
+
       // Analyze frames - SKIP face mesh entirely for now
       const results: FrameResult[] = [];
-      const BATCH_SIZE = 4;
+      const BATCH_SIZE = 1; // Process one at a time since ONNX lock serializes anyway
+      
+      // AbortController per frame for proper cancellation
+      const abortControllers = new Map<number, AbortController>();
+      
       // Helper function with timeout for individual frame processing
       const processFrameWithTimeout = async (
         frame: { imageData: HTMLCanvasElement; timestamp: number },
         frameIndex: number
       ): Promise<FrameResult | null> => {
-        const timeoutMs = 30000; // 30 second timeout per frame
+        const timeoutMs = 60000; // 60 second timeout per frame (7 models serial)
+        const controller = new AbortController();
+        abortControllers.set(frameIndex, controller);
         
         try {
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Frame ${frameIndex} timeout`)), timeoutMs);
+            setTimeout(() => {
+              controller.abort(); // Cancel the frame processing
+              reject(new Error(`Frame ${frameIndex} timeout`));
+            }, timeoutMs);
           });
           
           const processPromise = (async () => {
@@ -220,6 +237,8 @@ const VideoAnalyzer = () => {
             // Skip defensive transforms and face mesh - just do basic detection
             const imageData = batchCanvas.getContext('2d')!.getImageData(0, 0, batchCanvas.width, batchCanvas.height);
 
+            const runOnnx = onnxFrameIndices.has(frameIndex);
+            
             const result = await detector.detectMultiModal({
               imageData,
               faceMesh: undefined, // Skip face mesh
@@ -230,6 +249,8 @@ const VideoAnalyzer = () => {
               timestamp: frame.timestamp,
               isVideoFrame: true,
               univfd: frameIndex === 0 ? univfd : undefined,
+              skipOnnx: !runOnnx, // New flag to skip ONNX but keep PPG/temporal
+              abortSignal: controller.signal,
             });
 
             // Clean up
@@ -239,9 +260,12 @@ const VideoAnalyzer = () => {
             return { frameIndex, timestamp: frame.timestamp, result };
           })();
           
-          return await Promise.race([processPromise, timeoutPromise]);
+          const result = await Promise.race([processPromise, timeoutPromise]);
+          abortControllers.delete(frameIndex);
+          return result;
         } catch (error) {
           console.error(`⚠️ Frame ${frameIndex} failed:`, error);
+          abortControllers.delete(frameIndex);
           return null;
         }
       };
@@ -265,7 +289,7 @@ const VideoAnalyzer = () => {
         }
         
         results.push(...successfulResults);
-        setAnalysisProgress(((batchStart + batch.length) / frames.length) * 100);
+        setAnalysisProgress(20 + ((batchStart + batch.length) / frames.length) * 75); // 20-95%
         
         // If we failed to process any frames in this batch, show a warning but continue
         if (successfulResults.length < batch.length) {
@@ -296,6 +320,12 @@ const VideoAnalyzer = () => {
         new Set(results.flatMap((r) => r.result.anomalies))
       );
 
+      // Add info about ONNX sampling vs full PPG/temporal feed
+      const onnxFrameCount = onnxFrameIndices.size;
+      if (onnxFrameCount < frames.length) {
+        console.log(`ℹ️  ONNX ran on ${onnxFrameCount} sampled frames, PPG/temporal analyzed all ${frames.length}`);
+      }
+      
       // Add warning anomaly if we failed to analyze some frames
       if (results.length < frames.length) {
         allAnomalies.push(`partial_analysis_only_${results.length}_of_${frames.length}_frames_analyzed`);

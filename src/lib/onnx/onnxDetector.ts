@@ -32,6 +32,17 @@ const MODEL_URLS = {
 // (COOP/COEP headers must also be set in vercel.json + vite.config.ts)
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/';
 
+// Enable multi-threading only if cross-origin isolated
+// Multi-threading requires COOP/COEP headers to be properly set
+ort.env.wasm.numThreads = self.crossOriginIsolated 
+  ? Math.min(navigator.hardwareConcurrency ?? 4, 8) 
+  : 1;
+
+console.log(
+  `🔧 ONNX Runtime: ${ort.env.wasm.numThreads} threads, ` +
+  `cross-origin isolated: ${self.crossOriginIsolated}`
+);
+
 type ModelKey = keyof typeof MODEL_URLS;
 
 export interface OnnxModelResult {
@@ -109,7 +120,13 @@ async function idbSet(key: string, value: ArrayBuffer): Promise<void> {
 // ─── Session management ───────────────────────────────────────────────────────
 
 const sessions:   Partial<Record<ModelKey, ort.InferenceSession>> = {};
-const loadErrors: Partial<Record<ModelKey, boolean>>              = {};
+const loadErrors: Partial<Record<ModelKey, boolean>>              = {
+  // Untrained models with random heads - disable to prevent noise
+  efficientnetB4: true,  // ImageNet backbone + untrained head
+  xceptionNet: true,      // Custom tiny network, random weights (3.8 MB)
+  resnet50: true,         // ImageNet backbone + untrained head
+};
+const runErrors:  Partial<Record<ModelKey, boolean>>              = {}; // Skip models that fail at runtime
 const pending:    Partial<Record<ModelKey, Promise<ort.InferenceSession | null>>> = {};
 
 /**
@@ -237,6 +254,18 @@ export async function initOnnxDetector(): Promise<void> {
   );
 }
 
+// ─── Model Configuration ──────────────────────────────────────────────────────
+
+const MODEL_INPUT = {
+  vitDeepfakeExp:   { size: 224, norm: 'imagenet' as const },
+  vitDeepfakeV2:    { size: 224, norm: 'imagenet' as const },
+  deepfakeDetector: { size: 224, norm: 'imagenet' as const },
+  aiDetector:       { size: 256, norm: 'imagenet' as const },  // SwinV2 needs 256 (window16)
+  efficientnetB4:   { size: 380, norm: 'imagenet' as const },
+  xceptionNet:      { size: 299, norm: 'range1' as const },
+  resnet50:         { size: 224, norm: 'imagenet' as const },
+} as const satisfies Record<ModelKey, { size: number; norm: 'imagenet' | 'range1' }>;
+
 // ─── Preprocessing ────────────────────────────────────────────────────────────
 
 /**
@@ -282,17 +311,34 @@ function canvasToTensor(canvas: HTMLCanvasElement, size: number, normalize: 'ima
 async function runModel(
   key: ModelKey,
   canvas: HTMLCanvasElement,
-  size: number,
-  normalize: 'imagenet' | 'range1' = 'imagenet'
+  signal?: AbortSignal
 ): Promise<OnnxModelResult> {
+  // Check abort signal before expensive work
+  if (signal?.aborted) {
+    return { score: 0, available: false };
+  }
+  
+  // Skip models that have failed at runtime
+  if (runErrors[key]) {
+    return { score: 0, available: false };
+  }
+
   const session = await getSession(key);
   if (!session) return { score: 0, available: false };
 
   try {
+    // Use model-specific input configuration
+    const { size, norm } = MODEL_INPUT[key];
+    
     // Use global mutex to serialize ALL session.run() calls across all models
     // ONNX Runtime JSEP layer only allows one inference at a time globally
     const outputData = await runExclusive(async () => {
-      const tensor = canvasToTensor(canvas, size, normalize);
+      // Check abort again inside the lock
+      if (signal?.aborted) {
+        throw new Error('Aborted');
+      }
+      
+      const tensor = canvasToTensor(canvas, size, norm);
       const inputName = session.inputNames[0];
       const output = await session.run({ [inputName]: tensor });
       
@@ -318,7 +364,19 @@ async function runModel(
 
     return { score, available: true };
   } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    
+    // Don't log or mark as failed if it was deliberately aborted
+    if (errorMsg === 'Aborted' || signal?.aborted) {
+      return { score: 0, available: false };
+    }
+    
     console.warn(`ONNX inference error (${key}):`, e);
+    
+    // Mark as failed so we skip it on subsequent frames
+    runErrors[key] = true;
+    console.warn(`⚠️  Disabling ${key} for remaining frames due to repeated failures`);
+    
     return { score: 0, available: false };
   }
 }
@@ -327,7 +385,8 @@ async function runModel(
 export async function detectWithOnnx(
   canvas: HTMLCanvasElement,
   faceBbox: FaceBoundingBox | null = null,
-  eyePoints?: EyePoints
+  eyePoints?: EyePoints,
+  signal?: AbortSignal
 ): Promise<OnnxDetectionResult> {
   const anomalies: string[] = [];
 
@@ -335,13 +394,13 @@ export async function detectWithOnnx(
   const faceCanvas = cropFaceFromCanvas(canvas, faceBbox, 0.20, eyePoints);
 
   // Run models SEQUENTIALLY (not Promise.all) - combined with global mutex for ONNX JSEP restriction
-  const vitDeepfakeExp = await runModel('vitDeepfakeExp', faceCanvas, 224);
-  const vitDeepfakeV2 = await runModel('vitDeepfakeV2', faceCanvas, 224);
-  const deepfakeDetector = await runModel('deepfakeDetector', faceCanvas, 224);
-  const aiDetector = await runModel('aiDetector', canvas, 224);
-  const efficientnetB4 = await runModel('efficientnetB4', faceCanvas, 224);
-  const xceptionNet = await runModel('xceptionNet', faceCanvas, 224);
-  const resnet50 = await runModel('resnet50', faceCanvas, 224);
+  const vitDeepfakeExp = await runModel('vitDeepfakeExp', faceCanvas, signal);
+  const vitDeepfakeV2 = await runModel('vitDeepfakeV2', faceCanvas, signal);
+  const deepfakeDetector = await runModel('deepfakeDetector', faceCanvas, signal);
+  const aiDetector = await runModel('aiDetector', canvas, signal);
+  const efficientnetB4 = await runModel('efficientnetB4', faceCanvas, signal);
+  const xceptionNet = await runModel('xceptionNet', faceCanvas, signal);
+  const resnet50 = await runModel('resnet50', faceCanvas, signal);
 
   if (vitDeepfakeExp.available   && vitDeepfakeExp.score   > 0.7) anomalies.push('vit_deepfake_signal');
   if (vitDeepfakeV2.available    && vitDeepfakeV2.score    > 0.7) anomalies.push('vit_deepfake_v2_signal');
