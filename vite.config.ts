@@ -20,4 +20,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@mediapipe/face_detection', '@mediapipe/face_mesh'],
   },
+  build: {
+    assetsInlineLimit: 0, // Don't inline any assets, including binary files
+  },
+  // Ensure public directory is copied correctly
+  publicDir: 'public',
 })
