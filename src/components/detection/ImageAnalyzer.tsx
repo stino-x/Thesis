@@ -172,11 +172,10 @@ const ImageAnalyzer = () => {
       }
 
       // 2. Preprocess with OpenCV (only if available)
-      let processed = null;
       if (cvAvailable) {
         try {
           const mat = canvasToMat(canvas);
-          processed = preprocessForML(mat, 224);
+          const processed = preprocessForML(mat, 224);
           deleteMat(mat);
         } catch (cvError) {
           console.warn('⚠️  OpenCV preprocessing failed:', cvError);
@@ -225,8 +224,6 @@ const ImageAnalyzer = () => {
           anomalies: ['no_face_detected'],
           modelsUsed: [],
         });
-        deleteMat(mat);
-        deleteMat(processed);
         setIsAnalyzing(false);
         performanceMonitor.endMark('image-analysis-total');
         return;
@@ -385,10 +382,6 @@ const ImageAnalyzer = () => {
           } : undefined,
         },
       });
-
-      // Cleanup
-      deleteMat(mat);
-      deleteMat(processed);
 
       toast.success('Analysis complete');
     } catch (error) {
