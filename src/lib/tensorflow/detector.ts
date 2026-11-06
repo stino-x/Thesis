@@ -27,6 +27,17 @@ import { detectWithOnnx, initOnnxDetector } from '../onnx/onnxDetector';
 import { mediapipeBboxToFaceBbox, eyePointsFromLandmarks } from '../onnx/faceLocalizer';
 import { getTemporalAnalyzer, type TemporalAnalysisResult } from '../temporal/temporalConsistency';
 
+// ─── Performance Measurement ───────────────────────────────────────────────────
+
+async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const t = performance.now();
+  try { 
+    return await fn(); 
+  } finally { 
+    console.log(`[stage] ${label}: ${Math.round(performance.now() - t)}ms`); 
+  }
+}
+
 type NormalizedLandmark = { x: number; y: number; z: number };
 
 // ─── Result Types ────────────────────────────────────────────────────────────
@@ -136,6 +147,14 @@ export class DeepfakeDetector {
   }
 
   private async loadMesoNet(): Promise<void> {
+    // MesoNet4 is broken — weight data mismatch with model.json
+    // Error: "Provided weight data has no target variable: conv2d_5/kernel:0"
+    // This model needs to be re-exported from the original .h5 checkpoint
+    console.log('⚠️  MesoNet4 disabled — model.json/weights mismatch (needs re-export)');
+    this.availability.mesonet = false;
+    return;
+    
+    /* ORIGINAL CODE — DO NOT USE UNTIL MODEL IS FIXED
     try {
       console.log('📥 Loading MesoNet4...');
       console.log('   Path: /models/mesonet/model.json');
@@ -186,6 +205,7 @@ export class DeepfakeDetector {
       
       // Don't re-throw - allow initialization to continue
     }
+    */
   }
 
 
@@ -249,7 +269,9 @@ export class DeepfakeDetector {
       try {
         const bbox      = faceBbox ? mediapipeBboxToFaceBbox(faceBbox) : null;
         const eyePoints = faceLandmarks ? eyePointsFromLandmarks(faceLandmarks) : undefined;
-        const onnx = await detectWithOnnx(canvas, bbox, eyePoints, abortSignal);
+        const onnx = await timed('onnx-all-models', () => 
+          detectWithOnnx(canvas, bbox, eyePoints, abortSignal)
+        );
 
         // Group A: face-specific detectors (trained ViT models only)
         // REMOVED: efficientnetB4, xceptionNet, resnet50 (untrained heads producing noise)
@@ -471,6 +493,7 @@ export class DeepfakeDetector {
     canvas?: HTMLCanvasElement;
     faceBbox?: { xMin: number; yMin: number; width: number; height: number };
     audioBuffer?: AudioBuffer;
+    voiceAnalysis?: VoiceAnalysisResult; // Pre-computed voice analysis result (to avoid re-analyzing per frame)
     file?: File;
     timestamp?: number;
     isVideoFrame?: boolean;
@@ -478,15 +501,19 @@ export class DeepfakeDetector {
     skipOnnx?: boolean; // Skip ONNX models but keep PPG/temporal
     abortSignal?: AbortSignal; // For cancellation
   }): Promise<DetectionResult> {
-    const { imageData, features, faceMesh, canvas, faceBbox, audioBuffer, file, timestamp, univfd } = options;
+    const { imageData, features, faceMesh, canvas, faceBbox, audioBuffer, voiceAnalysis, file, timestamp, univfd } = options;
 
     const results: Parameters<typeof this.combineMultiModalResults>[0] = {};
 
     if (imageData && !options.skipOnnx) {
-      results.visual = await this.detectEnsemble(imageData, features, canvas, faceBbox, options.faceMesh, options.abortSignal);
+      results.visual = await timed('detectEnsemble', () => 
+        this.detectEnsemble(imageData, features, canvas, faceBbox, options.faceMesh, options.abortSignal)
+      );
     }
     if (file) {
-      results.metadata = await getMetadataAnalyzer().analyzeFile(file);
+      results.metadata = await timed('metadata', () => 
+        getMetadataAnalyzer().analyzeFile(file)
+      );
     }
     if (faceMesh && canvas && timestamp !== undefined) {
       // PPG requires temporal data — only run when we have a frame sequence
@@ -494,14 +521,23 @@ export class DeepfakeDetector {
       // insufficient_data anyway, but we skip the call to avoid noise.
       const isVideo = options.isVideoFrame === true;
       if (isVideo) {
-        results.ppg = await getPPGAnalyzer().analyzePPG(faceMesh, canvas, timestamp);
+        results.ppg = await timed('ppg', () => 
+          getPPGAnalyzer().analyzePPG(faceMesh, canvas, timestamp)
+        );
       }
     }
     if (faceMesh && audioBuffer && timestamp !== undefined) {
-      results.lipSync = await getLipSyncAnalyzer().analyzeLipSync(faceMesh, audioBuffer, timestamp);
+      results.lipSync = await timed('lipSync', () => 
+        getLipSyncAnalyzer().analyzeLipSync(faceMesh, audioBuffer, timestamp)
+      );
     }
-    if (audioBuffer) {
-      results.voice = await getVoiceAnalyzer().analyzeVoice(audioBuffer);
+    // Use pre-computed voice analysis if provided (video frames), or analyze now (single image)
+    if (voiceAnalysis) {
+      results.voice = voiceAnalysis;
+    } else if (audioBuffer) {
+      results.voice = await timed('voice', () => 
+        getVoiceAnalyzer().analyzeVoice(audioBuffer)
+      );
     }
     if (univfd) {
       results.univfd = univfd;

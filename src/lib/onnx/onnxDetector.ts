@@ -38,9 +38,12 @@ ort.env.wasm.numThreads = self.crossOriginIsolated
   ? Math.min(navigator.hardwareConcurrency ?? 4, 8) 
   : 1;
 
+// Move inference off main thread (only works with cross-origin isolation)
+ort.env.wasm.proxy = self.crossOriginIsolated;
+
 console.log(
   `🔧 ONNX Runtime: ${ort.env.wasm.numThreads} threads, ` +
-  `cross-origin isolated: ${self.crossOriginIsolated}`
+  `proxy: ${ort.env.wasm.proxy}, cross-origin isolated: ${self.crossOriginIsolated}`
 );
 
 type ModelKey = keyof typeof MODEL_URLS;

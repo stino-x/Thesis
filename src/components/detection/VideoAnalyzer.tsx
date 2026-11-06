@@ -28,6 +28,7 @@ import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
 import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
 import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
+import type { VoiceAnalysisResult } from '@/lib/audio/voiceAnalyzer';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 interface FrameResult {
@@ -208,6 +209,18 @@ const VideoAnalyzer = () => {
       const BATCH_SIZE = 1; // Process one at a time since ONNX lock serializes anyway
       
       // AbortController per frame for proper cancellation
+      // ─── Hoist per-video work (run once, not per-frame) ────────────────────────
+      // Audio analysis doesn't depend on frames — analyze the full track once
+      let voiceResult: VoiceAnalysisResult | undefined = undefined;
+      if (audioBuffer) {
+        console.log('🎤 Analyzing audio track once (not per-frame)...');
+        const { getVoiceAnalyzer } = await import('@/lib/audio/voiceAnalyzer');
+        voiceResult = await getVoiceAnalyzer().analyzeVoice(audioBuffer);
+        console.log('✅ Voice analysis complete:', voiceResult);
+      }
+
+      // ─── Frame-by-frame detection loop ─────────────────────────────────────────
+      
       const abortControllers = new Map<number, AbortController>();
       
       // Helper function with timeout for individual frame processing
@@ -215,7 +228,9 @@ const VideoAnalyzer = () => {
         frame: { imageData: HTMLCanvasElement; timestamp: number },
         frameIndex: number
       ): Promise<FrameResult | null> => {
-        const timeoutMs = 60000; // 60 second timeout per frame (7 models serial)
+        // First frame needs extra time for cold start (model compilation, cache misses)
+        // Subsequent frames are much faster once warmed up
+        const timeoutMs = frameIndex === 0 ? 180000 : 60000; // 3min first, 1min after
         const controller = new AbortController();
         abortControllers.set(frameIndex, controller);
         
@@ -244,7 +259,8 @@ const VideoAnalyzer = () => {
               faceMesh: undefined, // Skip face mesh
               canvas: batchCanvas,
               faceBbox: undefined,
-              audioBuffer: audioBuffer ?? undefined,
+              audioBuffer: undefined, // REMOVED: was analyzing full audio 109 times!
+              voiceAnalysis: voiceResult, // Pass pre-computed result instead
               file: selectedFile,
               timestamp: frame.timestamp,
               isVideoFrame: true,
