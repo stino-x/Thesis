@@ -20,6 +20,9 @@
  * Inference: 80-120ms per 3-second clip
  */
 
+import { runExclusive } from '../onnx/ortQueue';
+import * as ort from 'onnxruntime-web';
+
 export interface AASISTResult {
   score: number; // 0-1, higher = more likely spoofed/deepfake
   confidence: number; // 0-1, model confidence
@@ -67,16 +70,12 @@ export class AASISTDetector {
     try {
       console.log('🔄 Loading AASIST audio deepfake detector...');
       
-      // Check if ONNX Runtime is available
-      if (typeof window === 'undefined' || !(window as any).ort) {
-        throw new Error('ONNX Runtime not available');
-      }
-
-      const ort = (window as any).ort;
-
       // Load model (will be cached in IndexedDB after first load)
-      this.model = await ort.InferenceSession.create(this.modelPath, {
-        executionProviders: ['wasm'],
+      // Wrap create in runExclusive to avoid conflicts with ongoing inference
+      this.model = await runExclusive(async () => {
+        return await ort.InferenceSession.create(this.modelPath, {
+          executionProviders: ['wasm'],
+        });
       });
 
       console.log('✅ AASIST model loaded successfully');
@@ -186,24 +185,24 @@ export class AASISTDetector {
   private async runInference(audioData: Float32Array): Promise<number> {
     if (!this.model) throw new Error('Model not loaded');
 
-    const ort = (window as any).ort;
-
     // Prepare input tensor: [1, audio_length]
     const inputTensor = new ort.Tensor('float32', audioData, [1, audioData.length]);
 
-    // Run inference
-    const feeds = { audio: inputTensor };
-    const results = await this.model.run(feeds);
+    // Run inference with global mutex (ONNX Runtime JSEP restriction)
+    const probFake = await runExclusive(async () => {
+      const feeds = { audio: inputTensor };
+      const results = await this.model.run(feeds);
 
-    // Get output: [1, 2] logits (real, fake)
-    const output = results.output;
-    const logits = output.data as Float32Array;
+      // Get output: [1, 2] logits (real, fake)
+      const output = results.output;
+      const logits = Array.from(output.data as Float32Array);
 
-    // Apply softmax to get probabilities
-    const expReal = Math.exp(logits[0]);
-    const expFake = Math.exp(logits[1]);
-    const sumExp = expReal + expFake;
-    const probFake = expFake / sumExp;
+      // Apply softmax to get probabilities
+      const expReal = Math.exp(logits[0]);
+      const expFake = Math.exp(logits[1]);
+      const sumExp = expReal + expFake;
+      return expFake / sumExp;
+    });
 
     return probFake;
   }
