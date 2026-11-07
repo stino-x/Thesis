@@ -352,15 +352,17 @@ export class DeepfakeDetector {
       ensembleScore = parts.reduce((s, [sc, w]) => s + sc * (w / totalW), 0);
     }
 
-    // Strong signal override: if any single model is very confident, boost
+    // Strong signal override: make it symmetric (boost extreme scores either way)
     const allScores = [...groupA, ...groupB].map(([s]) => s);
-    const maxScore = allScores.length > 0 ? Math.max(...allScores) : 0;
-    if (maxScore > 0.92) {
-      // One model is extremely confident — blend it in more strongly
-      ensembleScore = ensembleScore * 0.6 + maxScore * 0.4;
+    const extreme = allScores.reduce((m, s) => Math.abs(s - 0.5) > Math.abs(m - 0.5) ? s : m, 0.5);
+    if (Math.abs(extreme - 0.5) > 0.42) {
+      ensembleScore = ensembleScore * 0.6 + extreme * 0.4;
     }
 
     const confidence = Math.min(Math.max(Math.abs(ensembleScore - 0.5) * 2, 0.05), 0.99);
+
+    // Store raw probability (0-1) for temporal/aggregation, apply threshold for verdict
+    scores.ensemble = ensembleScore;
 
     return {
       isDeepfake: ensembleScore > this.threshold,
@@ -450,7 +452,7 @@ export class DeepfakeDetector {
    * Ensemble: CNN image result + landmark features combined.
    */
   async detectEnsemble(imageData: ImageData, features?: DeepfakeFeatures, canvas?: HTMLCanvasElement, faceBbox?: { xMin: number; yMin: number; width: number; height: number }, faceLandmarks?: { x: number; y: number; z: number }[], abortSignal?: AbortSignal): Promise<DetectionResult> {
-    const imageTensor = tf.browser.fromPixels(imageData).div(255.0);
+    const imageTensor = tf.tidy(() => tf.browser.fromPixels(imageData).div(255.0));
 
     try {
       const imageResult = await this.detectFromImage(imageTensor, canvas, faceBbox, faceLandmarks, abortSignal);
@@ -459,22 +461,23 @@ export class DeepfakeDetector {
 
       const featureResult = await this.detectFromFeatures(features);
 
-      // FIXED: Blend signed scores (confidence × direction), not raw confidence values
-      // Raw confidence blending causes real frames to be flagged as fake
-      const imageScore = imageResult.confidence * (imageResult.isDeepfake ? 1 : -1);
-      const featureScore = featureResult.confidence * (featureResult.isDeepfake ? 1 : -1);
+      // Blend using raw probabilities (0-1), not confidence × sign
+      const pImg = imageResult.scores.ensemble ?? 0.5;
+      // Absence of feature anomalies shouldn't count as evidence for "real"
+      const pFeat = featureResult.anomalies.length > 0 
+        ? (featureResult.scores.features ?? 50) / 100 
+        : 0.5;
       
       // Visual models get more weight when real models are loaded
-      const cnnWeight = imageResult.modelsUsed.some(m => ['MesoNet4', 'ViT-Deepfake-Exp', 'ViT-Deepfake-v2', 'SwinV2-AI-Detector', 'DeepfakeDetector-ONNX'].includes(m)) ? 0.75 : 0.5;
-      const ensembleScore = (imageScore * cnnWeight) + (featureScore * (1 - cnnWeight));
+      const cnnWeight = imageResult.modelsUsed.some(m => ['ViT-Deepfake-Exp', 'ViT-Deepfake-v2', 'SwinV2-AI-Detector', 'DeepfakeDetector-ONNX'].includes(m)) ? 0.75 : 0.5;
+      const p = pImg * cnnWeight + pFeat * (1 - cnnWeight);
       
-      const confidence = Math.abs(ensembleScore);
-      const isDeepfake = ensembleScore > 0;
+      const confidence = Math.abs(p - 0.5) * 2;
 
       return {
-        isDeepfake,
+        isDeepfake: p > this.threshold,
         confidence,
-        scores: { ...imageResult.scores, ...featureResult.scores },
+        scores: { ...imageResult.scores, ...featureResult.scores, ensemble: p },
         anomalies: Array.from(new Set([...imageResult.anomalies, ...featureResult.anomalies])),
         modelsUsed: Array.from(new Set([...imageResult.modelsUsed, ...featureResult.modelsUsed])),
       };
@@ -494,6 +497,7 @@ export class DeepfakeDetector {
     faceBbox?: { xMin: number; yMin: number; width: number; height: number };
     audioBuffer?: AudioBuffer;
     voiceAnalysis?: VoiceAnalysisResult; // Pre-computed voice analysis result (to avoid re-analyzing per frame)
+    metadataAnalysis?: MetadataAnalysisResult; // Pre-computed metadata analysis
     file?: File;
     timestamp?: number;
     isVideoFrame?: boolean;
@@ -501,7 +505,7 @@ export class DeepfakeDetector {
     skipOnnx?: boolean; // Skip ONNX models but keep PPG/temporal
     abortSignal?: AbortSignal; // For cancellation
   }): Promise<DetectionResult> {
-    const { imageData, features, faceMesh, canvas, faceBbox, audioBuffer, voiceAnalysis, file, timestamp, univfd } = options;
+    const { imageData, features, faceMesh, canvas, faceBbox, audioBuffer, voiceAnalysis, metadataAnalysis, file, timestamp, univfd } = options;
 
     const results: Parameters<typeof this.combineMultiModalResults>[0] = {};
 
@@ -510,7 +514,10 @@ export class DeepfakeDetector {
         this.detectEnsemble(imageData, features, canvas, faceBbox, options.faceMesh, options.abortSignal)
       );
     }
-    if (file) {
+    // Use pre-computed metadata if provided, otherwise analyze now
+    if (metadataAnalysis) {
+      results.metadata = metadataAnalysis;
+    } else if (file) {
       results.metadata = await timed('metadata', () => 
         getMetadataAnalyzer().analyzeFile(file)
       );
@@ -544,19 +551,14 @@ export class DeepfakeDetector {
     }
 
     // Feed visual result into temporal sliding window (video only)
-    // Even if we skipped ONNX, feed PPG/metadata into temporal
-    // FIXED: Use signed score (-1 to +1) not zeroed score for real frames
-    let temporalResult: TemporalAnalysisResult | undefined;
-    if (options.isVideoFrame) {
-      const visualScore = results.visual 
-        ? results.visual.confidence * (results.visual.isDeepfake ? 1 : -1)
-        : 0;
-      temporalResult = getTemporalAnalyzer().addFrame({
-        score: visualScore,
-        isDeepfake: results.visual?.isDeepfake ?? false,
+    // Only feed frames that actually ran ML models (skipOnnx frames shouldn't poison temporal)
+    if (options.isVideoFrame && results.visual && !options.skipOnnx) {
+      const p = results.visual.scores.ensemble ?? 0.5; // Use probability, not signed score
+      results.temporal = getTemporalAnalyzer().addFrame({
+        score: p,
+        isDeepfake: p > 0.5, // Fixed threshold for temporal, not this.threshold
         timestamp: options.timestamp ?? Date.now(),
       });
-      results.temporal = temporalResult;
     }
 
     return this.combineMultiModalResults(results);

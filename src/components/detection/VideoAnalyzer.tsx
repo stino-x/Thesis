@@ -29,6 +29,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
 import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
 import type { VoiceAnalysisResult } from '@/lib/audio/voiceAnalyzer';
+import type { MetadataAnalysisResult } from '@/lib/forensics/metadataAnalyzer';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
 
 interface FrameResult {
@@ -219,16 +220,31 @@ const VideoAnalyzer = () => {
         console.log('✅ Voice analysis complete:', voiceResult);
       }
 
+      // Metadata analysis doesn't depend on frames either
+      let metadataResult: MetadataAnalysisResult | undefined = undefined;
+      if (selectedFile) {
+        try {
+          console.log('📄 Analyzing metadata once (not per-frame)...');
+          const { getMetadataAnalyzer } = await import('@/lib/forensics/metadataAnalyzer');
+          metadataResult = await getMetadataAnalyzer().analyzeFile(selectedFile);
+          console.log('✅ Metadata analysis complete:', metadataResult);
+        } catch (metadataError) {
+          console.warn('⚠️ Could not analyze metadata:', metadataError);
+        }
+      }
+
       // ─── Frame-by-frame detection loop ─────────────────────────────────────────
       
       // Run-level AbortController for Cancel button (no per-frame timeouts)
       const runController = new AbortController();
+      const t0 = performance.now(); // Track overall timing
       
       // Helper function for frame processing (NO TIMEOUT - queue drains naturally)
       const processFrame = async (
         frame: { imageData: HTMLCanvasElement; timestamp: number },
         frameIndex: number
       ): Promise<FrameResult | null> => {
+        const frameStart = performance.now();
         try {
           const batchCanvas = document.createElement('canvas');
           batchCanvas.width = canvas.width;
@@ -255,7 +271,8 @@ const VideoAnalyzer = () => {
             faceBbox: undefined,
             audioBuffer: undefined, // REMOVED: was analyzing full audio 109 times!
             voiceAnalysis: voiceResult, // Pass pre-computed result instead
-            file: selectedFile,
+            metadataAnalysis: metadataResult, // Pass pre-computed metadata
+            file: undefined, // Don't re-analyze metadata per frame
             timestamp: frame.timestamp,
             isVideoFrame: true,
             univfd: frameIndex === 0 ? univfd : undefined,
@@ -267,6 +284,14 @@ const VideoAnalyzer = () => {
           batchCanvas.width = 0;
           batchCanvas.height = 0;
 
+          // Check if aborted after cleanup
+          if (runController.signal.aborted) {
+            return null;
+          }
+
+          const elapsed = Math.round(performance.now() - frameStart);
+          console.log(`frame ${frameIndex} ${Math.round(performance.now() - t0)}ms (frame took ${elapsed}ms)`);
+
           return { frameIndex, timestamp: frame.timestamp, result };
         } catch (error) {
           console.error(`⚠️ Frame ${frameIndex} failed:`, error, 'type:', typeof error);
@@ -275,6 +300,12 @@ const VideoAnalyzer = () => {
       };
 
       for (let batchStart = 0; batchStart < frames.length; batchStart += BATCH_SIZE) {
+        // Check for abort at start of each iteration
+        if (runController.signal.aborted) {
+          console.log('⚠️  Analysis aborted by user');
+          break;
+        }
+        
         const batch = frames.slice(batchStart, batchStart + BATCH_SIZE);
         
         // Process batch sequentially (no timeouts, natural queue drain)
@@ -305,6 +336,10 @@ const VideoAnalyzer = () => {
       
       console.log(`✅ Completed all batch processing: ${results.length}/${frames.length} total frames analyzed`);
 
+      // Log ORT performance statistics
+      const { ortStats } = await import('@/lib/onnx/ortQueue');
+      console.table(ortStats());
+
       setFrameResults(results);
 
       // Handle case where no frames could be analyzed
@@ -314,11 +349,26 @@ const VideoAnalyzer = () => {
         return;
       }
 
-      // Calculate overall result
-      const avgConfidence =
-        results.reduce((sum, r) => sum + r.result.confidence, 0) / results.length;
-      const deepfakeCount = results.filter((r) => r.result.isDeepfake).length;
-      const isDeepfake = deepfakeCount > results.length / 2;
+      // Aggregate results - ONLY from ML frames (frames with ensemble scores)
+      // Non-ML frames (heuristics only) should not vote on the final verdict
+      const ML_MODELS = new Set(['ViT-Deepfake-Exp', 'ViT-Deepfake-v2', 'DeepfakeDetector-ONNX', 'SwinV2-AI-Detector']);
+      const mlFrames = results.filter(r => 
+        r.result.scores.ensemble !== undefined && 
+        r.result.modelsUsed.some(m => ML_MODELS.has(m))
+      );
+      
+      if (mlFrames.length === 0) {
+        toast.error('No ML models ran successfully - cannot determine verdict');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      console.log(`📊 Aggregating over ${mlFrames.length}/${results.length} ML frames (ignoring heuristic-only frames)`);
+
+      const meanProbability = mlFrames.reduce((sum, r) => sum + (r.result.scores.ensemble ?? 0.5), 0) / mlFrames.length;
+      const deepfakeCount = mlFrames.filter(r => (r.result.scores.ensemble ?? 0.5) > 0.5).length;
+      const isDeepfake = meanProbability > 0.5;
+      const avgConfidence = Math.abs(meanProbability - 0.5) * 2;
 
       const allAnomalies = Array.from(
         new Set(results.flatMap((r) => r.result.anomalies))
@@ -351,9 +401,9 @@ const VideoAnalyzer = () => {
       const overall: DetectionResult = {
         isDeepfake,
         confidence: avgConfidence,
-        scores: aggregatedScores,
+        scores: { ...aggregatedScores, ensemble: meanProbability },
         anomalies: allAnomalies,
-        modelsUsed: Array.from(new Set(results.flatMap(r => r.result.modelsUsed))),
+        modelsUsed: Array.from(new Set(mlFrames.flatMap(r => r.result.modelsUsed))),
         multiModalDetails: lastFrameDetails,
       };
 
@@ -401,8 +451,10 @@ const VideoAnalyzer = () => {
         processing_time_ms: elapsed,
         metadata: {
           duration_seconds: video.duration,
-          frames_analyzed: results.length,
+          frames_analyzed: mlFrames.length, // Only ML frames
+          total_frames_processed: results.length,
           deepfake_frames: deepfakeCount,
+          mean_probability: meanProbability,
           suspicious_segments: segments.length,
           temporal_consistency: overall.scores.temporal,
           multi_modal: true,
