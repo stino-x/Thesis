@@ -235,16 +235,21 @@ async function loadSession(key: ModelKey): Promise<ort.InferenceSession | null> 
 
     sessions[key] = await runExclusive(async () => {
       // Try WebGPU first if available, fall back to WASM
-      const executionProviders = (navigator as { gpu?: unknown }).gpu 
+      type NavWithGPU = typeof navigator & { gpu?: unknown };
+      const executionProviders = (navigator as NavWithGPU).gpu 
         ? (['webgpu', 'wasm'] as const)
         : (['wasm'] as const);
         
+      type SessionInternal = ort.InferenceSession & { 
+        handler?: { _backend?: { _backendName?: string } } 
+      };
+      
       const session = await ort.InferenceSession.create(buffer, {
         executionProviders: executionProviders as unknown as ort.InferenceSession.ExecutionProviderConfig[],
       });
       
       // Log which provider was actually used
-      const provider = (session as { handler?: { _backend?: { _backendName?: string } } }).handler?._backend?._backendName || 'unknown';
+      const provider = (session as SessionInternal).handler?._backend?._backendName || 'unknown';
       if (provider !== 'unknown') {
         console.log(`   Provider: ${provider}`);
       }
