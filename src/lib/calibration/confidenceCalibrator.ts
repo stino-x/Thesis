@@ -37,12 +37,15 @@ const DEFAULT_CALIBRATION: Record<string, CalibrationParams> = {
   default: { A: -1.0, B: 0.0 },
 };
 
+// Only real model outputs are calibrated (not texture/metadata/features/ensemble)
+const MODEL_KEYS = new Set(['mesonet', 'vitDeepfakeExp', 'vitDeepfakeV2', 'deepfakeDetector', 'aiDetector', 'univfd']);
+
 /**
  * Apply Platt scaling to a raw score
  */
 function plattScale(score: number, params: CalibrationParams): number {
   const { A, B } = params;
-  const z = A * score + B;
+  const z = -(A * (score - 0.5) + B); // P = 1/(1+exp(A*(f-0.5)+B)); negative A => higher score gives higher P
   const calibrated = 1 / (1 + Math.exp(-z));
   return Math.max(0, Math.min(1, calibrated));
 }
@@ -79,8 +82,10 @@ export function calibrateEnsemble(
   const calibratedValues: number[] = [];
   
   // Calibrate each model's score
-  for (const [model, score] of Object.entries(scores)) {
-    if (score !== undefined && !isNaN(score)) {
+  for (const [model, rawScore] of Object.entries(scores)) {
+    if (!MODEL_KEYS.has(model)) continue;
+    if (rawScore !== undefined && !isNaN(rawScore)) {
+      const score = rawScore / 100; // model scores are stored on a 0-100 scale
       const calibrated = calibrateScore(score, model);
       calibratedScores[model] = calibrated;
       calibratedValues.push(calibrated);
@@ -88,9 +93,10 @@ export function calibrateEnsemble(
   }
   
   if (calibratedValues.length === 0) {
+    const fallback = scores.ensemble; // already a 0-1 probability (video results)
     return {
       calibratedScores: {},
-      ensembleProbability: 0.5,
+      ensembleProbability: fallback !== undefined && !isNaN(fallback) ? fallback : 0.5,
       reliability: 0,
     };
   }

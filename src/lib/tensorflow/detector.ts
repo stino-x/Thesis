@@ -708,7 +708,7 @@ export class DeepfakeDetector {
     // Group A+B visual score (already a grouped ensemble from detectFromImage)
     let visualScore: number | null = null;
     if (results.visual) {
-      visualScore = results.visual.confidence * (results.visual.isDeepfake ? 1 : -1) * 0.5 + 0.5;
+      visualScore = results.visual.scores.ensemble ?? 0.5;
       Object.assign(scores, results.visual.scores);
       allAnomalies.push(...results.visual.anomalies);
       modelsUsed.push(...results.visual.modelsUsed);
@@ -727,7 +727,9 @@ export class DeepfakeDetector {
     const forensicParts: [number, number][] = [];
 
     if (results.metadata) {
-      forensicParts.push([results.metadata.score, 1.0]);
+      if (results.metadata.anomalies.length > 0) {
+        forensicParts.push([results.metadata.score, 1.0]);
+      }
       scores.metadata = results.metadata.score * 100;
       allAnomalies.push(...results.metadata.anomalies);
       modelsUsed.push('MetadataForensics');

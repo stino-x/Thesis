@@ -200,10 +200,12 @@ const VideoAnalyzer = () => {
       // Sample frames for ONNX (every 8th frame) to reduce computational load
       // PPG and temporal analyzers still get all frames (they need high frame rate)
       // 109 frames → 14 sampled frames (was 28 with every-4th)
+      const MAX_ONNX_FRAMES = 5;
+      const onnxCount = Math.min(MAX_ONNX_FRAMES, frames.length);
       const onnxFrameIndices = new Set(
-        frames.map((_, idx) => idx).filter(idx => idx % 8 === 0)
+        Array.from({ length: onnxCount }, (_, i) => Math.floor((i * frames.length) / onnxCount))
       );
-      console.log(`📊 Will run ONNX on ${onnxFrameIndices.size}/${frames.length} frames (every 8th)`);
+      console.log(`📊 Will run ONNX on ${onnxFrameIndices.size}/${frames.length} frames (evenly spaced)`);
 
       // Analyze frames - SKIP face mesh entirely for now
       const results: FrameResult[] = [];
@@ -1063,9 +1065,9 @@ const VideoAnalyzer = () => {
                                 <span className="capitalize text-muted-foreground">
                                   {key.replace(/([A-Z])/g, ' $1').trim()}
                                 </span>
-                                <span className="font-medium">{(val * 100).toFixed(1)}%</span>
+                                <span className="font-medium">{(['ensemble', 'temporal'].includes(key) ? val * 100 : val).toFixed(1)}%</span>
                               </div>
-                              <Progress value={val * 100} className="h-1.5" />
+                              <Progress value={['ensemble', 'temporal'].includes(key) ? val * 100 : val} className="h-1.5" />
                             </div>
                           )
                         ))}

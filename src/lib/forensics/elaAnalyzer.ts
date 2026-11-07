@@ -285,7 +285,10 @@ function analyzeFrequencyDomain(
 
   // Build histogram of gradient magnitudes (10 bins)
   const bins = 10;
-  const maxGrad = Math.max(...gradients);
+  let maxGrad = 0;
+  for (let i = 0; i < gradients.length; i++) {
+    if (gradients[i] > maxGrad) maxGrad = gradients[i];
+  }
   if (maxGrad === 0) return 0;
 
   const histogram = new Array(bins).fill(0);

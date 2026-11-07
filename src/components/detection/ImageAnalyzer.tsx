@@ -269,14 +269,6 @@ const ImageAnalyzer = () => {
 
         detectionResult = await detector.detectMultiModal({
           imageData,
-          features: {
-            blinkRate: 0,
-            eyeAspectRatio: (leftEAR + rightEAR) / 2,
-            landmarkJitter: 0,
-            faceSymmetry: 0.8,
-            mouthMovement: 0,
-            headPoseStability: 1,
-          },
           faceMesh: meshResult.landmarks,
           canvas,
           faceBbox: faces[0].boundingBox ?? undefined,
@@ -304,6 +296,7 @@ const ImageAnalyzer = () => {
       }
 
       setResult(detectionResult);
+      console.log('SCORES', JSON.stringify(detectionResult.scores), detectionResult.anomalies);
       const elapsed = timer.getElapsedMs();
       setProcessingTime(elapsed);
 
@@ -409,10 +402,11 @@ const ImageAnalyzer = () => {
     elaData: ELAResult | null,
   ) => {
     const overlay = overlayCanvasRef.current;
-    if (!overlay || !imageDimensions) return;
+    const source = canvasRef.current;
+    if (!overlay || !source) return;
 
-    overlay.width = imageDimensions.width;
-    overlay.height = imageDimensions.height;
+    overlay.width = source.width;
+    overlay.height = source.height;
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, overlay.width, overlay.height);
@@ -738,9 +732,9 @@ const ImageAnalyzer = () => {
                                 <span className="capitalize text-muted-foreground">
                                   {key.replace(/([A-Z])/g, ' $1').trim()}
                                 </span>
-                                <span className="font-medium">{(value * 100).toFixed(1)}%</span>
+                                <span className="font-medium">{(key === 'ensemble' ? value * 100 : value).toFixed(1)}%</span>
                               </div>
-                              <Progress value={value * 100} className="h-1.5" />
+                              <Progress value={key === 'ensemble' ? value * 100 : value} className="h-1.5" />
                             </div>
                           )
                         ))}

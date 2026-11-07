@@ -221,7 +221,8 @@ function detectMouthManipulation(
   
   // MediaPipe face mesh mouth landmarks: indices 61-291 (simplified)
   // For simplicity, we'll use a bounding box around typical mouth region
-  const mouthLandmarks = faceLandmarks.slice(61, 291);
+  const LIP_INDICES = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95];
+  const mouthLandmarks = LIP_INDICES.map(i => faceLandmarks[i]).filter(Boolean);
   
   if (mouthLandmarks.length === 0) return null;
   
@@ -257,7 +258,7 @@ export function detectPartialDeepfake(
   imageData: ImageData,
   faceBbox?: { xMin: number; yMin: number; width: number; height: number },
   faceLandmarks?: Array<{ x: number; y: number }>,
-  modelScores?: Record<string, number>
+  _modelScores?: Record<string, number>
 ): PartialDeepfakeResult {
   const suspiciousRegions: SuspiciousRegion[] = [];
   
@@ -285,30 +286,6 @@ export function detectPartialDeepfake(
   // 3. Frequency analysis across image
   const frequencyRegions = detectFrequencyMismatches(imageData, 6);
   suspiciousRegions.push(...frequencyRegions);
-  
-  // 4. If models disagree, might indicate partial manipulation
-  if (modelScores) {
-    const values = Object.values(modelScores).filter(v => v !== undefined);
-    if (values.length > 1) {
-      const variance = values.reduce((sum, val) => 
-        sum + Math.pow(val - values.reduce((a, b) => a + b) / values.length, 2), 0
-      ) / values.length;
-      
-      if (variance > 0.15) {
-        // High variance suggests some models see manipulation, others don't
-        // This can happen with partial deepfakes
-        suspiciousRegions.push({
-          x: 0,
-          y: 0,
-          width: imageData.width,
-          height: imageData.height,
-          confidence: Math.min(1, variance * 3),
-          reason: 'Model disagreement suggests localized manipulation',
-          type: 'unknown',
-        });
-      }
-    }
-  }
   
   // Merge overlapping regions
   const mergedRegions = mergeOverlappingRegions(suspiciousRegions);
