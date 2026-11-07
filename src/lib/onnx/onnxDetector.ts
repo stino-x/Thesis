@@ -10,7 +10,7 @@
  * so subsequent page loads skip the ~1.1 GB network fetch entirely.
  */
 
-import * as ort from 'onnxruntime-web';
+import * as ort from 'onnxruntime-web/wasm';
 import { cropFaceFromCanvas, type FaceBoundingBox, type EyePoints } from './faceLocalizer';
 import { updateModelStatus } from '@/components/ModelLoadingStatus';
 import { runExclusive } from './ortQueue';
@@ -38,8 +38,9 @@ ort.env.wasm.numThreads = self.crossOriginIsolated
   ? Math.min(navigator.hardwareConcurrency ?? 4, 8) 
   : 1;
 
-// Move inference off main thread (only works with cross-origin isolation)
-ort.env.wasm.proxy = self.crossOriginIsolated;
+// Disable proxy to avoid Web Worker crashes when app code touches `document`
+// Multi-threading still works via numThreads without the proxy
+ort.env.wasm.proxy = false;
 
 console.log(
   `🔧 ONNX Runtime: ${ort.env.wasm.numThreads} threads, ` +
@@ -234,25 +235,10 @@ async function loadSession(key: ModelKey): Promise<ort.InferenceSession | null> 
     }
 
     sessions[key] = await runExclusive(async () => {
-      // Try WebGPU first if available, fall back to WASM
-      type NavWithGPU = typeof navigator & { gpu?: unknown };
-      const executionProviders = (navigator as NavWithGPU).gpu 
-        ? (['webgpu', 'wasm'] as const)
-        : (['wasm'] as const);
-        
-      type SessionInternal = ort.InferenceSession & { 
-        handler?: { _backend?: { _backendName?: string } } 
-      };
-      
+      // Use WASM only for now (WebGPU fallback causes multiple initWasm calls)
       const session = await ort.InferenceSession.create(buffer, {
-        executionProviders: executionProviders as unknown as ort.InferenceSession.ExecutionProviderConfig[],
+        executionProviders: ['wasm'],
       });
-      
-      // Log which provider was actually used
-      const provider = (session as SessionInternal).handler?._backend?._backendName || 'unknown';
-      if (provider !== 'unknown') {
-        console.log(`   Provider: ${provider}`);
-      }
       
       return session;
     }, { label: `create-${key}` });
