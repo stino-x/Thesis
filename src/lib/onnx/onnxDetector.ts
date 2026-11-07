@@ -257,27 +257,6 @@ async function loadSession(key: ModelKey): Promise<ort.InferenceSession | null> 
       return session;
     }, { label: `create-${key}` });
     
-    // Warmup: run dummy inference to trigger kernel compilation and allocation
-    // Avoids first-frame JIT cost (can add seconds to first frame)
-    try {
-      const { size } = MODEL_INPUT[key];
-      const dummyCanvas = document.createElement('canvas');
-      dummyCanvas.width = dummyCanvas.height = size;
-      const dummyCtx = dummyCanvas.getContext('2d')!;
-      dummyCtx.fillRect(0, 0, size, size); // Black square
-      
-      await runExclusive(async () => {
-        const tensor = canvasToTensor(dummyCanvas, size, MODEL_INPUT[key].norm);
-        const inputName = sessions[key]!.inputNames[0];
-        const output = await sessions[key]!.run({ [inputName]: tensor });
-        Object.values(output).forEach(t => (t as ort.Tensor).dispose?.());
-      }, { label: `warmup-${key}` });
-      
-      console.log(`🔥 Warmed up ${key}`);
-    } catch (e) {
-      console.warn(`⚠️  Warmup failed for ${key} (non-fatal):`, e);
-    }
-    
     console.log(`✅ ONNX ready: ${key}`);
     updateModelStatus(key, 'ready');
     return sessions[key]!;
