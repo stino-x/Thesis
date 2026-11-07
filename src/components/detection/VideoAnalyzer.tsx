@@ -196,13 +196,13 @@ const VideoAnalyzer = () => {
       await detector.waitForInitialization();
       detector.setThreshold(1 - settings.sensitivity);
 
-      // Sample frames for ONNX (every 4th frame) to reduce computational load
-      // BUT keep feeding all frames to PPG and temporal analyzers (they need high frame rate)
-      // 109 frames × 7 models = ~760 serial ONNX inferences is excessive
+      // Sample frames for ONNX (every 8th frame) to reduce computational load
+      // PPG and temporal analyzers still get all frames (they need high frame rate)
+      // 109 frames → 14 sampled frames (was 28 with every-4th)
       const onnxFrameIndices = new Set(
-        frames.map((_, idx) => idx).filter(idx => idx % 4 === 0)
+        frames.map((_, idx) => idx).filter(idx => idx % 8 === 0)
       );
-      console.log(`📊 Will run ONNX on ${onnxFrameIndices.size}/${frames.length} frames (every 4th)`);
+      console.log(`📊 Will run ONNX on ${onnxFrameIndices.size}/${frames.length} frames (every 8th)`);
 
       // Analyze frames - SKIP face mesh entirely for now
       const results: FrameResult[] = [];
@@ -221,67 +221,55 @@ const VideoAnalyzer = () => {
 
       // ─── Frame-by-frame detection loop ─────────────────────────────────────────
       
-      const abortControllers = new Map<number, AbortController>();
+      // Run-level AbortController for Cancel button (no per-frame timeouts)
+      const runController = new AbortController();
       
-      // Helper function with timeout for individual frame processing
-      const processFrameWithTimeout = async (
+      // Helper function for frame processing (NO TIMEOUT - queue drains naturally)
+      const processFrame = async (
         frame: { imageData: HTMLCanvasElement; timestamp: number },
         frameIndex: number
       ): Promise<FrameResult | null> => {
-        // First frame needs extra time for cold start (model compilation, cache misses)
-        // Subsequent frames are much faster once warmed up
-        const timeoutMs = frameIndex === 0 ? 180000 : 60000; // 3min first, 1min after
-        const controller = new AbortController();
-        abortControllers.set(frameIndex, controller);
-        
         try {
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => {
-              controller.abort(); // Cancel the frame processing
-              reject(new Error(`Frame ${frameIndex} timeout`));
-            }, timeoutMs);
+          const batchCanvas = document.createElement('canvas');
+          batchCanvas.width = canvas.width;
+          batchCanvas.height = canvas.height;
+          const batchCtx = batchCanvas.getContext('2d')!;
+          batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
+
+          // Skip defensive transforms and face mesh - just do basic detection
+          const imageData = batchCanvas.getContext('2d')!.getImageData(0, 0, batchCanvas.width, batchCanvas.height);
+
+          // Log lock depth to detect backlog wedge
+          const { lockDepth } = await import('@/lib/onnx/ortQueue');
+          const depth = lockDepth();
+          if (depth > 5) {
+            console.warn(`⚠️  Frame ${frameIndex}: ORT lock depth = ${depth} (backlog detected)`);
+          }
+
+          const runOnnx = onnxFrameIndices.has(frameIndex);
+          
+          const result = await detector.detectMultiModal({
+            imageData,
+            faceMesh: undefined, // Skip face mesh
+            canvas: batchCanvas,
+            faceBbox: undefined,
+            audioBuffer: undefined, // REMOVED: was analyzing full audio 109 times!
+            voiceAnalysis: voiceResult, // Pass pre-computed result instead
+            file: selectedFile,
+            timestamp: frame.timestamp,
+            isVideoFrame: true,
+            univfd: frameIndex === 0 ? univfd : undefined,
+            skipOnnx: !runOnnx, // New flag to skip ONNX but keep PPG/temporal
+            abortSignal: runController.signal,
           });
-          
-          const processPromise = (async () => {
-            const batchCanvas = document.createElement('canvas');
-            batchCanvas.width = canvas.width;
-            batchCanvas.height = canvas.height;
-            const batchCtx = batchCanvas.getContext('2d')!;
-            batchCtx.drawImage(frame.imageData, 0, 0, batchCanvas.width, batchCanvas.height);
 
-            // Skip defensive transforms and face mesh - just do basic detection
-            const imageData = batchCanvas.getContext('2d')!.getImageData(0, 0, batchCanvas.width, batchCanvas.height);
+          // Clean up
+          batchCanvas.width = 0;
+          batchCanvas.height = 0;
 
-            const runOnnx = onnxFrameIndices.has(frameIndex);
-            
-            const result = await detector.detectMultiModal({
-              imageData,
-              faceMesh: undefined, // Skip face mesh
-              canvas: batchCanvas,
-              faceBbox: undefined,
-              audioBuffer: undefined, // REMOVED: was analyzing full audio 109 times!
-              voiceAnalysis: voiceResult, // Pass pre-computed result instead
-              file: selectedFile,
-              timestamp: frame.timestamp,
-              isVideoFrame: true,
-              univfd: frameIndex === 0 ? univfd : undefined,
-              skipOnnx: !runOnnx, // New flag to skip ONNX but keep PPG/temporal
-              abortSignal: controller.signal,
-            });
-
-            // Clean up
-            batchCanvas.width = 0;
-            batchCanvas.height = 0;
-
-            return { frameIndex, timestamp: frame.timestamp, result };
-          })();
-          
-          const result = await Promise.race([processPromise, timeoutPromise]);
-          abortControllers.delete(frameIndex);
-          return result;
+          return { frameIndex, timestamp: frame.timestamp, result };
         } catch (error) {
-          console.error(`⚠️ Frame ${frameIndex} failed:`, error);
-          abortControllers.delete(frameIndex);
+          console.error(`⚠️ Frame ${frameIndex} failed:`, error, 'type:', typeof error);
           return null;
         }
       };
@@ -289,9 +277,9 @@ const VideoAnalyzer = () => {
       for (let batchStart = 0; batchStart < frames.length; batchStart += BATCH_SIZE) {
         const batch = frames.slice(batchStart, batchStart + BATCH_SIZE);
         
-        // Process batch with individual timeouts
+        // Process batch sequentially (no timeouts, natural queue drain)
         const batchPromises = batch.map((frame, batchIdx) => 
-          processFrameWithTimeout(frame, batchStart + batchIdx)
+          processFrame(frame, batchStart + batchIdx)
         );
         
         const batchResults = await Promise.allSettled(batchPromises);
