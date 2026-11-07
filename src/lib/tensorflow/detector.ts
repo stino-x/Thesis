@@ -746,10 +746,9 @@ export class DeepfakeDetector {
     }
     if (results.voice) {
       // Voice heuristic has high false-positive rate on compressed/non-English audio.
-      // Only include in ensemble when confidence is high (requires 2+ corroborating signals).
-      // Weight is 0 for low-confidence results — voice anomalies still surface in the UI
-      // but don't influence the verdict until a trained model (RawNet2/AASIST) is available.
-      const voiceWeight = results.voice.confidence >= 0.5 ? 1.0 : 0;
+      // Disabled until a trained model (RawNet2/AASIST) is available.
+      // Voice anomalies still surface in the UI but don't influence the verdict.
+      const voiceWeight = 0;
       if (voiceWeight > 0) {
         forensicParts.push([results.voice.score, voiceWeight]);
       }

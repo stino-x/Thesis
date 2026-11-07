@@ -86,7 +86,7 @@ export class MetadataAnalyzer {
         // Check 4: Non-standard resolution (AI often generates specific sizes)
         const commonResolutions = [
           [1920, 1080], [1280, 720], [640, 480], [3840, 2160],
-          [854, 480], [1280, 960], [1024, 768]
+          [854, 480], [1280, 960], [1024, 768], [720, 1280], [1080, 1920]
         ];
         
         const isStandardRes = commonResolutions.some(
@@ -174,29 +174,44 @@ export class MetadataAnalyzer {
   /**
    * Extract video metadata using HTML5 video element
    */
-  private async extractVideoMetadata(file: File): Promise<VideoMetadata | null> {
+  private async extractVideoMetadata(file: File, timeoutMs = 8000): Promise<VideoMetadata | null> {
     return new Promise((resolve) => {
       const video = document.createElement('video');
+      const url = URL.createObjectURL(file);
+      let settled = false;
+
+      const finish = (value: VideoMetadata | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        video.removeAttribute('src');
+        video.load();
+        URL.revokeObjectURL(url);
+        resolve(value);
+      };
+
+      const timer = setTimeout(() => {
+        console.warn(`⚠️ Video metadata extraction timed out after ${timeoutMs}ms`);
+        finish(null);
+      }, timeoutMs);
+
       video.preload = 'metadata';
+      video.muted = true;
 
       video.onloadedmetadata = () => {
-        const metadata: VideoMetadata = {
+        finish({
           duration: video.duration,
           width: video.videoWidth,
           height: video.videoHeight,
-          aspectRatio: video.videoWidth / video.videoHeight,
-        };
-
-        URL.revokeObjectURL(video.src);
-        resolve(metadata);
+          aspectRatio: video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 0,
+        });
       };
 
-      video.onerror = () => {
-        URL.revokeObjectURL(video.src);
-        resolve(null);
-      };
+      video.onerror = () => finish(null);
 
-      video.src = URL.createObjectURL(file);
+      video.src = url;
     });
   }
 
