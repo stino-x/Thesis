@@ -237,7 +237,7 @@ async function loadSession(key: ModelKey): Promise<ort.InferenceSession | null> 
       return await ort.InferenceSession.create(buffer, {
         executionProviders: ['wasm'],
       });
-    });
+    }, { label: `create-${key}` });
     
     console.log(`✅ ONNX ready: ${key}`);
     updateModelStatus(key, 'ready');
@@ -353,7 +353,7 @@ async function runModel(
       Object.values(output).forEach(t => (t as ort.Tensor).dispose?.());
       
       return data;
-    });
+    }, { label: key, signal });
 
     // Handle both 2-logit (softmax) and single sigmoid outputs
     let score: number;
