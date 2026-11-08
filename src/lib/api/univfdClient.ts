@@ -41,14 +41,14 @@ export async function isBackendAvailable(): Promise<boolean> {
   if (_backendAvailable !== null) return _backendAvailable;
   console.log('🔍 Checking UnivFD backend availability:', BACKEND_URL);
   try {
-    const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(5000) }); // 5s for Modal cold start
-    _backendAvailable = res.ok;
-    console.log(_backendAvailable ? '✅ UnivFD backend is available' : '❌ UnivFD backend returned non-OK status');
+    const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(20000) }); // 20s for Modal cold start
+    console.log(res.ok ? '✅ UnivFD backend is available' : `❌ UnivFD backend returned status ${res.status}`);
+    if (res.ok) _backendAvailable = true;
+    return res.ok;
   } catch (e) {
     console.warn('❌ UnivFD backend is NOT available:', e);
-    _backendAvailable = false;
+    return false; // not cached, so the next analysis tries again
   }
-  return _backendAvailable;
 }
 
 /** Reset the cached availability (call if you want to retry after a failure). */
@@ -90,7 +90,7 @@ export async function detectWithUnivFD(
     return { ...data, available: true };
   } catch (e) {
     console.warn('UnivFD request failed:', e);
-    _backendAvailable = false; // mark offline so we stop trying
+    _backendAvailable = null; // not cached, so the next call re-checks
     return null;
   }
 }
@@ -128,7 +128,7 @@ export async function detectFileWithUnivFD(file: File): Promise<UnivFDResult | n
     return { ...data, available: true };
   } catch (e) {
     console.warn('UnivFD file request failed:', e);
-    _backendAvailable = false;
+    _backendAvailable = null;
     return null;
   }
 }

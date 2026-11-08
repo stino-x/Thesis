@@ -175,16 +175,8 @@ const VideoAnalyzer = () => {
           throw error;
         });
 
-      // Try UnivFD but don't block if it fails
-      let univfd: { score: number; confidence: number; isDeepfake: boolean; anomalies: string[]; modelLoaded: boolean } | undefined;
-      try {
-        univfd = await detectWithUnivFD(canvas, selectedFile.name).catch(() => null);
-        if (univfd) {
-          console.log('✅ UnivFD detection successful');
-        }
-      } catch (univfdError) {
-        console.warn('⚠️ UnivFD detection failed, continuing without it:', univfdError);
-      }
+      // Start UnivFD in the background; it is awaited only when a frame needs it
+      const univfdPromise = detectWithUnivFD(canvas, selectedFile.name).catch(() => null);
 
       if (frames.length === 0) {
         toast.error('No frames could be extracted from video');
@@ -239,6 +231,7 @@ const VideoAnalyzer = () => {
       
       // Run-level AbortController for Cancel button (no per-frame timeouts)
       const runController = new AbortController();
+      const univfdFrameIndex = Math.max(...Array.from(onnxFrameIndices));
       const t0 = performance.now(); // Track overall timing
       
       // Helper function for frame processing (NO TIMEOUT - queue drains naturally)
@@ -265,6 +258,7 @@ const VideoAnalyzer = () => {
           }
 
           const runOnnx = onnxFrameIndices.has(frameIndex);
+          const univfdForFrame = frameIndex === univfdFrameIndex ? ((await univfdPromise) ?? undefined) : undefined;
           
           const result = await detector.detectMultiModal({
             imageData,
@@ -277,7 +271,7 @@ const VideoAnalyzer = () => {
             file: undefined, // Don't re-analyze metadata per frame
             timestamp: frame.timestamp,
             isVideoFrame: true,
-            univfd: frameIndex === 0 ? univfd : undefined,
+            univfd: univfdForFrame,
             skipOnnx: !runOnnx, // New flag to skip ONNX but keep PPG/temporal
             abortSignal: runController.signal,
           });

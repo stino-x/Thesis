@@ -9,7 +9,7 @@
  * - Export report capability
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +25,7 @@ import { waitForOpenCV, canvasToMat, preprocessForML, deleteMat } from '@/lib/op
 import { getFaceDetector, getFaceMesh } from '@/lib/mediapipe';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
 import { performELA, type ELAResult } from '@/lib/forensics/elaAnalyzer';
-import { detectFileWithUnivFD, type UnivFDResult } from '@/lib/api/univfdClient';
+import { detectFileWithUnivFD, isBackendAvailable, type UnivFDResult } from '@/lib/api/univfdClient';
 import { applyDefensiveTransforms } from '@/lib/defense/defensiveTransforms';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
@@ -56,6 +56,10 @@ const ImageAnalyzer = () => {
 
   const { logDetection, getTimingHelper } = useAuditLog();
   const { settings } = useSettings();
+
+  useEffect(() => {
+    isBackendAvailable(); // wakes the Modal container before the first analysis
+  }, []);
 
   const handleFileSelect = (file: File) => {
     if (!validateImageFile(file)) {
@@ -207,7 +211,7 @@ const ImageAnalyzer = () => {
 
       const [faces, univfd, elaData] = await Promise.all([
         runWithTimeout(faceDetector.detect(canvas), 'Face detection', 15000),
-        runWithTimeout(detectFileWithUnivFD(selectedFile), 'UnivFD detection', 20000),
+        runWithTimeout(detectFileWithUnivFD(selectedFile), 'UnivFD detection', 50000),
         runWithTimeout(performELA(canvas), 'ELA analysis', 10000),
       ]);
       const faceDetectionTime = performanceMonitor.endMark('face-detection');
