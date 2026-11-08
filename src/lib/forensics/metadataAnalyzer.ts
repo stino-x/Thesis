@@ -135,9 +135,11 @@ export class MetadataAnalyzer {
         };
       }
     } else if (file.type.startsWith('image/')) {
-      if (imageInfo) {
-        // Image dimensions are not evidence of AI generation, so no score is added.
-      }
+      // Image-specific checks
+      const imageInfo = await this.extractImageMetadata(file);
+      
+      // Image dimensions are not evidence of AI generation, so no score is added.
+      // (Previously checked for 512×512 and 1024×1024, but these are not reliable indicators)
     }
 
     // Normalize score
