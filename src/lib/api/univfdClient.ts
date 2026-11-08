@@ -41,7 +41,7 @@ export async function isBackendAvailable(): Promise<boolean> {
   if (_backendAvailable !== null) return _backendAvailable;
   console.log('🔍 Checking UnivFD backend availability:', BACKEND_URL);
   try {
-    const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(5000) }); // 5s for Modal cold start
     _backendAvailable = res.ok;
     console.log(_backendAvailable ? '✅ UnivFD backend is available' : '❌ UnivFD backend returned non-OK status');
   } catch (e) {
@@ -74,7 +74,7 @@ export async function detectWithUnivFD(
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ image: imageDataUrl, filename }),
-      signal: AbortSignal.timeout(15000), // 15s timeout for CLIP inference
+      signal: AbortSignal.timeout(20000), // 20s timeout for CLIP inference + Modal cold start
     });
 
     if (!res.ok) {
@@ -114,7 +114,7 @@ export async function detectFileWithUnivFD(file: File): Promise<UnivFDResult | n
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ image: dataUrl, filename: file.name }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000), // 20s timeout for Modal cold start
     });
 
     if (!res.ok) {
