@@ -135,22 +135,8 @@ export class MetadataAnalyzer {
         };
       }
     } else if (file.type.startsWith('image/')) {
-      // Image-specific checks
-      const imageInfo = await this.extractImageMetadata(file);
-      
       if (imageInfo) {
-        // Check for AI-common resolutions
-        if (imageInfo.width === 512 && imageInfo.height === 512) {
-          anomalies.push('ai_common_resolution');
-          suspiciousPatterns.push('512x512 is common AI image generation size');
-          score += 0.6;
-        }
-
-        if (imageInfo.width === 1024 && imageInfo.height === 1024) {
-          anomalies.push('ai_common_resolution');
-          suspiciousPatterns.push('1024x1024 is common AI image generation size');
-          score += 0.5;
-        }
+        // Image dimensions are not evidence of AI generation, so no score is added.
       }
     }
 

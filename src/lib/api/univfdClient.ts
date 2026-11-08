@@ -39,10 +39,13 @@ function getHeaders(): HeadersInit {
  */
 export async function isBackendAvailable(): Promise<boolean> {
   if (_backendAvailable !== null) return _backendAvailable;
+  console.log('🔍 Checking UnivFD backend availability:', BACKEND_URL);
   try {
     const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(2000) });
     _backendAvailable = res.ok;
-  } catch {
+    console.log(_backendAvailable ? '✅ UnivFD backend is available' : '❌ UnivFD backend returned non-OK status');
+  } catch (e) {
+    console.warn('❌ UnivFD backend is NOT available:', e);
     _backendAvailable = false;
   }
   return _backendAvailable;
@@ -83,6 +86,7 @@ export async function detectWithUnivFD(
     }
 
     const data = await res.json();
+    console.log('✅ UnivFD result (canvas):', { score: data.score, method: data.method, modelLoaded: data.modelLoaded });
     return { ...data, available: true };
   } catch (e) {
     console.warn('UnivFD request failed:', e);
@@ -120,6 +124,7 @@ export async function detectFileWithUnivFD(file: File): Promise<UnivFDResult | n
       return null;
     }
     const data = await res.json();
+    console.log('✅ UnivFD result (file):', { score: data.score, method: data.method, modelLoaded: data.modelLoaded });
     return { ...data, available: true };
   } catch (e) {
     console.warn('UnivFD file request failed:', e);

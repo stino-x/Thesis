@@ -359,6 +359,7 @@ async function runModel(
       return data;
     }, { label: key, signal });
 
+    console.log('RAW', key, Array.from(outputData));
     // Handle both 2-logit (softmax) and single sigmoid outputs
     let score: number;
     if (outputData.length === 2) {
