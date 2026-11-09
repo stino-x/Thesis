@@ -74,7 +74,7 @@ export async function detectWithUnivFD(
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ image: imageDataUrl, filename }),
-      signal: AbortSignal.timeout(20000), // 20s timeout for CLIP inference + Modal cold start
+      signal: AbortSignal.timeout(90000), // 90s: first request loads CLIP on a cold container
     });
 
     if (!res.ok) {
@@ -114,7 +114,7 @@ export async function detectFileWithUnivFD(file: File): Promise<UnivFDResult | n
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ image: dataUrl, filename: file.name }),
-      signal: AbortSignal.timeout(20000), // 20s timeout for Modal cold start
+      signal: AbortSignal.timeout(90000), // 90s: first request loads CLIP on a cold container
     });
 
     if (!res.ok) {

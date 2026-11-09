@@ -288,6 +288,7 @@ const VideoAnalyzer = () => {
           const elapsed = Math.round(performance.now() - frameStart);
           console.log(`frame ${frameIndex} ${Math.round(performance.now() - t0)}ms (frame took ${elapsed}ms)`);
 
+          if (runOnnx) console.log('FRAME', frameIndex, JSON.stringify(result.scores));
           return { frameIndex, timestamp: frame.timestamp, result };
         } catch (error) {
           console.error(`⚠️ Frame ${frameIndex} failed:`, error, 'type:', typeof error);
@@ -403,6 +404,7 @@ const VideoAnalyzer = () => {
         multiModalDetails: lastFrameDetails,
       };
 
+      console.log('VIDEO SCORES', JSON.stringify(overall.scores), overall.isDeepfake);
       setOverallResult(overall);
 
       // Enhance with research-grade features (if enabled) - use last frame's data

@@ -25,11 +25,12 @@ import { waitForOpenCV, canvasToMat, preprocessForML, deleteMat } from '@/lib/op
 import { getFaceDetector, getFaceMesh } from '@/lib/mediapipe';
 import { getDeepfakeDetector } from '@/lib/tensorflow';
 import { performELA, type ELAResult } from '@/lib/forensics/elaAnalyzer';
-import { detectFileWithUnivFD, isBackendAvailable, type UnivFDResult } from '@/lib/api/univfdClient';
+import { detectFileWithUnivFD, detectWithUnivFD, isBackendAvailable, type UnivFDResult } from '@/lib/api/univfdClient';
 import { applyDefensiveTransforms } from '@/lib/defense/defensiveTransforms';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useSettings } from '@/hooks/useSettings';
 import { ConfidenceWarning } from '@/components/ConfidenceWarning';
+import BatchEvaluator from '@/components/detection/BatchEvaluator';
 import { EnhancedResultsPanel } from '@/components/EnhancedResultsPanel';
 import { enhanceDetectionResult, type EnhancedDetectionResult } from '@/lib/tensorflow/enhancedDetector';
 import type { DetectionResult } from '@/lib/tensorflow/detector';
@@ -58,7 +59,15 @@ const ImageAnalyzer = () => {
   const { settings } = useSettings();
 
   useEffect(() => {
-    isBackendAvailable(); // wakes the Modal container before the first analysis
+    (async () => {
+      if (await isBackendAvailable()) {
+        const c = document.createElement('canvas');
+        c.width = c.height = 64;
+        const g = c.getContext('2d');
+        if (g) { g.fillStyle = '#808080'; g.fillRect(0, 0, 64, 64); }
+        await detectWithUnivFD(c, 'warmup.jpg'); // makes the server load CLIP before the first real image
+      }
+    })();
   }, []);
 
   const handleFileSelect = (file: File) => {
@@ -211,7 +220,7 @@ const ImageAnalyzer = () => {
 
       const [faces, univfd, elaData] = await Promise.all([
         runWithTimeout(faceDetector.detect(canvas), 'Face detection', 15000),
-        runWithTimeout(detectFileWithUnivFD(selectedFile), 'UnivFD detection', 50000),
+        runWithTimeout(detectFileWithUnivFD(selectedFile), 'UnivFD detection', 100000),
         runWithTimeout(performELA(canvas), 'ELA analysis', 10000),
       ]);
       const faceDetectionTime = performanceMonitor.endMark('face-detection');
@@ -501,6 +510,7 @@ const ImageAnalyzer = () => {
 
   return (
     <div className="space-y-6 animate-slide-up">
+      <BatchEvaluator />
       {/* Upload Area */}
       <Card className="overflow-hidden">
         <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
