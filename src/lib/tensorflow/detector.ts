@@ -778,8 +778,7 @@ export class DeepfakeDetector {
       // UnivFD raw scores are not probabilities: real ≈ 0.24–0.36, fake ≈ 0.34–0.46.
       // Re-centre on 0.35 so the 0.5 verdict threshold works. Fitted on 40 StyleGAN/FFHQ images.
       const univfdCalibrated = 1 / (1 + Math.exp(-(univfdScore - 0.35) * 20));
-      parts.push([univfdCalibrated, 0.65]);
-      if (visualScore !== null) parts.push([visualScore, 0.20]);
+      parts.push([univfdCalibrated, 0.85]);
       if (forensicScore !== null) parts.push([forensicScore, 0.15]);
     } else {
       // Backend unavailable: visual models only. Near chance on faces, so treat the result as weak.
