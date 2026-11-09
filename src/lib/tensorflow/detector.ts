@@ -774,9 +774,18 @@ export class DeepfakeDetector {
     // Combine: visual (A+B) + CLIP (B boost) + forensic (C)
     // Weights adapt to what's available
     const parts: [number, number][] = [];
-    if (visualScore !== null)  parts.push([visualScore,  0.50]);
-    if (univfdScore !== null)  parts.push([univfdScore,  0.35]); // CLIP is the best for new generators
-    if (forensicScore !== null) parts.push([forensicScore, 0.15]);
+    if (univfdScore !== null) {
+      // UnivFD raw scores are not probabilities: real ≈ 0.24–0.36, fake ≈ 0.34–0.46.
+      // Re-centre on 0.35 so the 0.5 verdict threshold works. Fitted on 40 StyleGAN/FFHQ images.
+      const univfdCalibrated = 1 / (1 + Math.exp(-(univfdScore - 0.35) * 20));
+      parts.push([univfdCalibrated, 0.65]);
+      if (visualScore !== null) parts.push([visualScore, 0.20]);
+      if (forensicScore !== null) parts.push([forensicScore, 0.15]);
+    } else {
+      // Backend unavailable: visual models only. Near chance on faces, so treat the result as weak.
+      if (visualScore !== null) parts.push([visualScore, 0.50]);
+      if (forensicScore !== null) parts.push([forensicScore, 0.15]);
+    }
 
     let finalScore: number;
     if (parts.length === 0) {
