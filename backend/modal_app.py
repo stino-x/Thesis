@@ -49,6 +49,9 @@ image = (
         "torchvision",
         "pillow",
         "numpy",
+        "open_clip_torch",  # for GRIP detector
+        "huggingface-hub",  # for GRIP model loading
+        "efficientnet-pytorch",  # for SBI detector
     )
     .run_commands(
         "pip install git+https://github.com/openai/CLIP.git"
@@ -58,6 +61,11 @@ image = (
 UNIVFD_URL = (
     "https://github.com/WisconsinAIVision/UniversalFakeDetect"
     "/raw/main/pretrained_weights/fc_weights.pth"
+)
+
+GRIP_URL = (
+    "https://github.com/grip-unina/ClipBased-SyntheticImageDetection"
+    "/raw/main/weights/clipdet_latent10k_plus/weights.pth"
 )
 
 # ── Inference class (loaded once per container) ───────────────────────────────
@@ -73,7 +81,10 @@ class Detector:
     @modal.enter()
     def load(self):
         import torch
+        import torch.nn as nn
         import clip
+        import open_clip
+        from huggingface_hub import hf_hub_download
 
         self.device = "cpu"
         print("Loading CLIP ViT-L/14...")
@@ -81,38 +92,148 @@ class Detector:
         self.clip_model.eval()
 
         # Download UnivFD weights to persistent volume if not cached
-        weights_path = WEIGHTS_DIR / "fc_weights.pth"
-        if not weights_path.exists():
+        univfd_path = WEIGHTS_DIR / "fc_weights.pth"
+        if not univfd_path.exists():
             print("Downloading UnivFD weights...")
-            urllib.request.urlretrieve(UNIVFD_URL, weights_path)
+            urllib.request.urlretrieve(UNIVFD_URL, univfd_path)
             volume.commit()
 
-        import torch.nn as nn
-        self.probe = nn.Linear(768, 1)
-        state = torch.load(str(weights_path), map_location=self.device, weights_only=True)
+        self.univfd_probe = nn.Linear(768, 1)
+        state = torch.load(str(univfd_path), map_location=self.device, weights_only=True)
         if isinstance(state, dict):
-            self.probe.load_state_dict(state)
+            self.univfd_probe.load_state_dict(state)
         else:
-            self.probe.weight.data = state.float().reshape(1, 768)
-            self.probe.bias.data = torch.zeros(1)
-        self.probe.eval()
-        print("Ready.")
+            self.univfd_probe.weight.data = state.float().reshape(1, 768)
+            self.univfd_probe.bias.data = torch.zeros(1)
+        self.univfd_probe.eval()
+
+        # Load GRIP detector (reuses CLIP features!)
+        print("Loading GRIP detector...")
+        grip_path = WEIGHTS_DIR / "grip_clipdet.pth"
+        if not grip_path.exists():
+            print("Downloading GRIP weights...")
+            urllib.request.urlretrieve(GRIP_URL, grip_path)
+            volume.commit()
+
+        # Load OpenCLIP backbone for GRIP (next-to-last layer features)
+        self.grip_backbone = open_clip.create_model(
+            "ViT-L-14",
+            pretrained=hf_hub_download("laion/CLIP-ViT-L-14-CommonPool.XL-s13B-b90K", "open_clip_pytorch_model.bin")
+        )
+        # Remove projection to get next-to-last layer (768-dim instead of final projection)
+        self.grip_backbone.visual.proj = None
+        self.grip_backbone.eval()
+        
+        # GRIP classifier head (simple linear layer)
+        self.grip_fc = nn.Linear(768, 1)
+        grip_state = torch.load(str(grip_path), map_location=self.device)
+        if 'model' in grip_state:
+            # Extract just the fc layer weights
+            fc_weights = {k.replace('fc.', ''): v for k, v in grip_state['model'].items() if k.startswith('fc.')}
+            self.grip_fc.load_state_dict(fc_weights)
+        else:
+            self.grip_fc.load_state_dict(grip_state)
+        self.grip_fc.eval()
+        
+        # GRIP preprocessing (224x224 center crop + CLIP normalization)
+        from torchvision.transforms import Compose, Resize, CenterCrop, Normalize, InterpolationMode
+        self.grip_preprocess = Compose([
+            Resize(224, interpolation=InterpolationMode.BICUBIC),
+            CenterCrop(224),
+            Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))
+        ])
+        
+        # Load SBI detectors (EfficientNet-B4, two versions for robustness)
+        print("Loading SBI face-swap detectors...")
+        from efficientnet_pytorch import EfficientNet
+        
+        # SBI FFraw (trained on uncompressed)
+        self.sbi_raw = EfficientNet.from_pretrained("efficientnet-b4", advprop=True, num_classes=2)
+        sbi_raw_path = WEIGHTS_DIR / "sbi_ffraw.tar"
+        if sbi_raw_path.exists():
+            sbi_raw_state = torch.load(str(sbi_raw_path), map_location=self.device)
+            self.sbi_raw.load_state_dict(sbi_raw_state["model"])
+            self.sbi_raw.eval()
+            print("  ✓ SBI FFraw loaded")
+        else:
+            print("  ⚠ SBI FFraw weights not found - face-swap detection disabled")
+            self.sbi_raw = None
+        
+        # SBI FFc23 (trained on compressed, more robust)
+        self.sbi_c23 = EfficientNet.from_pretrained("efficientnet-b4", advprop=True, num_classes=2)
+        sbi_c23_path = WEIGHTS_DIR / "sbi_ffc23.tar"
+        if sbi_c23_path.exists():
+            sbi_c23_state = torch.load(str(sbi_c23_path), map_location=self.device)
+            self.sbi_c23.load_state_dict(sbi_c23_state["model"])
+            self.sbi_c23.eval()
+            print("  ✓ SBI FFc23 loaded")
+        else:
+            print("  ⚠ SBI FFc23 weights not found")
+            self.sbi_c23 = None
+        
+        # SBI preprocessing (EfficientNet-B4 expects 380x380)
+        self.sbi_preprocess = Compose([
+            Resize(380, interpolation=InterpolationMode.BILINEAR),
+            CenterCrop(380),
+        ])
+        
+        print("Ready: UnivFD + GRIP + SBI")
 
     def _features(self, image_bytes: bytes):
         import torch
         from PIL import Image
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        
+        # UnivFD features (standard CLIP)
         inp = self.preprocess(img).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            f = self.clip_model.encode_image(inp)
-        return f
+            univfd_feat = self.clip_model.encode_image(inp)
+        
+        # GRIP features (OpenCLIP next-to-last layer)
+        from torchvision.transforms.functional import to_tensor
+        grip_inp = to_tensor(img).unsqueeze(0).to(self.device)
+        grip_inp = self.grip_preprocess(grip_inp)
+        with torch.no_grad():
+            grip_feat = self.grip_backbone.encode_image(grip_inp, normalize=True)
+        
+        # SBI preprocessing (380x380, normalized to 0-1)
+        sbi_inp = self.sbi_preprocess(img)
+        sbi_tensor = to_tensor(sbi_inp).unsqueeze(0).to(self.device)  # Already 0-1 range
+        
+        return univfd_feat, grip_feat, sbi_tensor
 
-    def _score(self, features) -> tuple[float, str]:
+    def _scores(self, univfd_features, grip_features, sbi_input) -> dict:
         import torch
         with torch.no_grad():
-            logit = self.probe(features.float())
-            prob = torch.sigmoid(logit).item()
-        return float(prob), "univfd"
+            # UnivFD score (sigmoid probability)
+            univfd_logit = self.univfd_probe(univfd_features.float())
+            univfd_prob = torch.sigmoid(univfd_logit).item()
+            
+            # GRIP score (raw logit where >0 means synthetic)
+            grip_logit = self.grip_fc(grip_features.float()).item()
+            grip_prob = torch.sigmoid(torch.tensor(grip_logit)).item()
+            
+            # SBI scores (softmax probabilities, class 1 = fake)
+            sbi_scores = []
+            if self.sbi_raw is not None:
+                sbi_raw_out = self.sbi_raw(sbi_input)
+                sbi_raw_prob = torch.softmax(sbi_raw_out, dim=1)[0, 1].item()
+                sbi_scores.append(sbi_raw_prob)
+            
+            if self.sbi_c23 is not None:
+                sbi_c23_out = self.sbi_c23(sbi_input)
+                sbi_c23_prob = torch.softmax(sbi_c23_out, dim=1)[0, 1].item()
+                sbi_scores.append(sbi_c23_prob)
+            
+            # Average SBI scores if both available
+            sbi_prob = sum(sbi_scores) / len(sbi_scores) if sbi_scores else None
+        
+        return {
+            "univfd": float(univfd_prob),
+            "grip": float(grip_prob),
+            "grip_logit": float(grip_logit),
+            "sbi": float(sbi_prob) if sbi_prob is not None else None,
+        }
 
     @modal.method()
     def detect(self, image_b64: str, filename: str = "image.jpg") -> dict:
@@ -123,25 +244,60 @@ class Detector:
             data = data.split(",", 1)[1]
         image_bytes = base64.b64decode(data)
 
-        features = self._features(image_bytes)
-        score, method = self._score(features)
-        is_fake = score > 0.5
-        confidence = abs(score - 0.5) * 2
+        univfd_feat, grip_feat, sbi_inp = self._features(image_bytes)
+        scores = self._scores(univfd_feat, grip_feat, sbi_inp)
+        
+        # Three-detector ensemble with learned weights
+        # UnivFD: 0.4 (GANs specialist)
+        # GRIP: 0.35 (Diffusion specialist)
+        # SBI: 0.25 (Face-swap specialist)
+        parts = [
+            (scores["univfd"], 0.4),
+            (scores["grip"], 0.35),
+        ]
+        if scores["sbi"] is not None:
+            parts.append((scores["sbi"], 0.25))
+        
+        # Weighted average
+        total_weight = sum(w for _, w in parts)
+        ensemble_score = sum(s * w for s, w in parts) / total_weight
+        
+        is_fake = ensemble_score > 0.5
+        confidence = abs(ensemble_score - 0.5) * 2
 
         anomalies = []
-        if score > 0.85:
-            anomalies.append("strong_ai_generation_signal")
-        elif score > 0.65:
-            anomalies.append("clip_features_suggest_synthetic")
+        if scores["univfd"] > 0.85:
+            anomalies.append("univfd_strong_gan_signal")
+        elif scores["univfd"] > 0.65:
+            anomalies.append("univfd_moderate_gan_signal")
+        
+        if scores["grip_logit"] > 2.0:
+            anomalies.append("grip_strong_diffusion_signal")
+        elif scores["grip_logit"] > 0:
+            anomalies.append("grip_diffusion_detected")
+        
+        if scores["sbi"] is not None:
+            if scores["sbi"] > 0.85:
+                anomalies.append("sbi_strong_faceswap_signal")
+            elif scores["sbi"] > 0.65:
+                anomalies.append("sbi_faceswap_detected")
 
-        return {
+        result = {
             "isDeepfake": is_fake,
             "confidence": round(confidence, 4),
-            "score": round(score, 4),
-            "method": method,
+            "score": round(ensemble_score, 4),
+            "univfd_score": round(scores["univfd"], 4),
+            "grip_score": round(scores["grip"], 4),
+            "grip_logit": round(scores["grip_logit"], 4),
+            "method": "univfd+grip+sbi",
             "anomalies": anomalies,
             "modelLoaded": True,
         }
+        
+        if scores["sbi"] is not None:
+            result["sbi_score"] = round(scores["sbi"], 4)
+        
+        return result
 
 
 # ── FastAPI wrapper (same interface as local backend) ─────────────────────────
@@ -193,6 +349,8 @@ def fastapi_app():
             "status": "ok",
             "clip_loaded": True,
             "univfd_loaded": True,
+            "grip_loaded": True,
+            "sbi_loaded": True,
             "auth_enabled": BACKEND_SECRET is not None,
         }
 
