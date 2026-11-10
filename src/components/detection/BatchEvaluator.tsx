@@ -8,7 +8,8 @@ import { detectFileWithUnivFD, isBackendAvailable } from '@/lib/api/univfdClient
 
 const COLUMNS = [
   'file', 'label', 'split', 'face',
-  'vitDeepfakeExp', 'vitDeepfakeV2', 'deepfakeDetector', 'aiDetector', 'univfd', 'texture',
+  'vitDeepfakeExp', 'vitDeepfakeV2', 'deepfakeDetector', 'aiDetector', 
+  'univfd', 'grip', 'sbi', 'texture',
   'visual_ensemble', 'final_p', 'is_deepfake', 'error',
 ];
 
@@ -34,8 +35,8 @@ const BatchEvaluator = () => {
     const faceMesh = getFaceMesh();
     await faceMesh.waitForInitialization();
     await faceMesh.detect(canvas); // first call is discarded
-    const mesh: any = await faceMesh.detect(canvas);
-    const landmarks = mesh?.detected ? mesh.landmarks || undefined : undefined;
+    const mesh = await faceMesh.detect(canvas);
+    const landmarks = mesh?.landmarks ?? undefined;
 
     let univfd = await detectFileWithUnivFD(file);
     if (!univfd) univfd = await detectFileWithUnivFD(file); // one retry for a cold backend
@@ -64,6 +65,8 @@ const BatchEvaluator = () => {
       deepfakeDetector: s.deepfakeDetector ?? '',
       aiDetector: s.aiDetector ?? '',
       univfd: s.univfd ?? '',
+      grip: s.grip_score ?? '',
+      sbi: s.sbi_score ?? '',
       texture: s.texture ?? '',
       visual_ensemble: s.ensemble ?? '',
       final_p: finalP.toFixed(4),
