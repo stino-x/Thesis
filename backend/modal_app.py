@@ -105,7 +105,6 @@ class Detector:
         inp = self.preprocess(img).unsqueeze(0).to(self.device)
         with torch.no_grad():
             f = self.clip_model.encode_image(inp)
-            f = f / f.norm(dim=-1, keepdim=True)
         return f
 
     def _score(self, features) -> tuple[float, str]:
