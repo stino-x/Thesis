@@ -257,20 +257,9 @@ class Detector:
         univfd_feat, grip_feat, sbi_inp = self._features(image_bytes)
         scores = self._scores(univfd_feat, grip_feat, sbi_inp)
         
-        # Three-detector ensemble with learned weights
-        # UnivFD: 0.4 (GANs specialist)
-        # GRIP: 0.35 (Diffusion specialist)
-        # SBI: 0.25 (Face-swap specialist)
-        parts = [
-            (scores["univfd"], 0.4),
-            (scores["grip"], 0.35),
-        ]
-        if scores["sbi"] is not None:
-            parts.append((scores["sbi"], 0.25))
-        
-        # Weighted average
-        total_weight = sum(w for _, w in parts)
-        ensemble_score = sum(s * w for s, w in parts) / total_weight
+        # Fusion: fake if either specialist fires (UnivFD for GANs, GRIP for diffusion).
+        # SBI is excluded: AUC about 0.5 on every test set so far.
+        ensemble_score = max(scores["univfd"], scores["grip"])
         
         is_fake = ensemble_score > 0.5
         confidence = abs(ensemble_score - 0.5) * 2
