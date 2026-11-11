@@ -125,7 +125,7 @@ class Detector:
         self.grip_backbone.eval()
         
         # GRIP classifier head (simple linear layer)
-        self.grip_fc = nn.Linear(768, 1)
+        self.grip_fc = nn.Linear(1024, 1)
         grip_state = torch.load(str(grip_path), map_location=self.device)
         if 'model' in grip_state:
             # Extract just the fc layer weights
@@ -151,10 +151,15 @@ class Detector:
         self.sbi_raw = EfficientNet.from_pretrained("efficientnet-b4", advprop=True, num_classes=2)
         sbi_raw_path = WEIGHTS_DIR / "sbi_ffraw.tar"
         if sbi_raw_path.exists():
-            sbi_raw_state = torch.load(str(sbi_raw_path), map_location=self.device)
-            self.sbi_raw.load_state_dict(sbi_raw_state["model"])
-            self.sbi_raw.eval()
-            print("  ✓ SBI FFraw loaded")
+            try:
+                sbi_raw_state = torch.load(str(sbi_raw_path), map_location=self.device)["model"]
+                sbi_raw_state = {(k[4:] if k.startswith("net.") else k): v for k, v in sbi_raw_state.items()}
+                self.sbi_raw.load_state_dict(sbi_raw_state)
+                self.sbi_raw.eval()
+                print("  ✓ SBI FFraw loaded")
+            except Exception as e:
+                print("  ⚠ SBI FFraw failed to load:", e)
+                self.sbi_raw = None
         else:
             print("  ⚠ SBI FFraw weights not found - face-swap detection disabled")
             self.sbi_raw = None
@@ -163,10 +168,15 @@ class Detector:
         self.sbi_c23 = EfficientNet.from_pretrained("efficientnet-b4", advprop=True, num_classes=2)
         sbi_c23_path = WEIGHTS_DIR / "sbi_ffc23.tar"
         if sbi_c23_path.exists():
-            sbi_c23_state = torch.load(str(sbi_c23_path), map_location=self.device)
-            self.sbi_c23.load_state_dict(sbi_c23_state["model"])
-            self.sbi_c23.eval()
-            print("  ✓ SBI FFc23 loaded")
+            try:
+                sbi_c23_state = torch.load(str(sbi_c23_path), map_location=self.device)["model"]
+                sbi_c23_state = {(k[4:] if k.startswith("net.") else k): v for k, v in sbi_c23_state.items()}
+                self.sbi_c23.load_state_dict(sbi_c23_state)
+                self.sbi_c23.eval()
+                print("  ✓ SBI FFc23 loaded")
+            except Exception as e:
+                print("  ⚠ SBI FFc23 failed to load:", e)
+                self.sbi_c23 = None
         else:
             print("  ⚠ SBI FFc23 weights not found")
             self.sbi_c23 = None
