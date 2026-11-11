@@ -9,7 +9,7 @@ import { detectFileWithUnivFD, isBackendAvailable } from '@/lib/api/univfdClient
 const COLUMNS = [
   'file', 'label', 'split', 'face',
   'vitDeepfakeExp', 'vitDeepfakeV2', 'deepfakeDetector', 'aiDetector', 
-  'univfd', 'grip', 'sbi', 'texture',
+  'univfd_raw', 'univfd', 'grip', 'sbi', 'texture',
   'visual_ensemble', 'final_p', 'is_deepfake', 'error',
 ];
 
@@ -64,9 +64,10 @@ const BatchEvaluator = () => {
       vitDeepfakeV2: s.vitDeepfakeV2 ?? '',
       deepfakeDetector: s.deepfakeDetector ?? '',
       aiDetector: s.aiDetector ?? '',
-      univfd: s.univfd ?? '',
-      grip: s.grip_score ?? '',
-      sbi: s.sbi_score ?? '',
+      univfd_raw: univfd?.univfd_score != null ? (univfd.univfd_score * 100).toFixed(2) : '',
+      univfd: univfd?.score != null ? (univfd.score * 100).toFixed(2) : '',
+      grip: univfd?.grip_score != null ? (univfd.grip_score * 100).toFixed(2) : '',
+      sbi: univfd?.sbi_score != null ? (univfd.sbi_score * 100).toFixed(2) : '',
       texture: s.texture ?? '',
       visual_ensemble: s.ensemble ?? '',
       final_p: finalP.toFixed(4),

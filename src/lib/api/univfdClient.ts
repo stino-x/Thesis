@@ -15,10 +15,13 @@ export interface UnivFDResult {
   isDeepfake: boolean;
   confidence: number;
   score: number;
-  method: 'univfd' | 'clip_zeroshot';
+  method: 'univfd' | 'clip_zeroshot' | 'univfd+grip+sbi';
   anomalies: string[];
   modelLoaded: boolean;
   available: boolean; // false when backend is offline
+  univfd_score?: number; // per-detector scores, 0-1 (three-detector backend)
+  grip_score?: number;
+  sbi_score?: number;
 }
 
 let _backendAvailable: boolean | null = null; // cached after first check
